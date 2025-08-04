@@ -20,10 +20,10 @@ interface UserPosition {
   username?: string;
 }
 
-// Sabit harita yapısı - her zaman aynı harita
-const generateFixedMap = () => {
+// Genişletilmiş harita yapısı - 100 bölümden oluşan dünya haritası
+const generateWorldMap = () => {
   const tiles = [];
-  const radius = 3;
+  const radius = 6; // Daha büyük harita için radius artırıldı
   
   for (let q = -radius; q <= radius; q++) {
     const r1 = Math.max(-radius, -q - radius);
@@ -38,10 +38,10 @@ const generateFixedMap = () => {
       
       let type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest' = 'plain';
       if (q === 0 && r === 0) type = 'castle'; // Merkez kale
-      else if (rand < 0.2) type = 'forest';
-      else if (rand < 0.35) type = 'mountain';
-      else if (rand < 0.45) type = 'mine';
-      else if (rand < 0.5) type = 'chest';
+      else if (rand < 0.25) type = 'forest';
+      else if (rand < 0.4) type = 'mountain';
+      else if (rand < 0.5) type = 'mine';
+      else if (rand < 0.55) type = 'chest';
       
       tiles.push({ q, r, s, type });
     }
@@ -50,7 +50,7 @@ const generateFixedMap = () => {
   return tiles;
 };
 
-const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, isEnemyCastle }: {
+const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, isOwnCastle, isEnemyCastle }: {
   q: number;
   r: number;
   s: number;
@@ -59,9 +59,10 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   isSelected: boolean;
   hasPlayer?: boolean;
   playerName?: string;
+  isOwnCastle?: boolean;
   isEnemyCastle?: boolean;
 }) => {
-  const size = 30;
+  const size = 25; // Daha büyük harita için tile boyutu küçültüldü
   const width = size * 2;
   const height = size * Math.sqrt(3);
   
@@ -69,21 +70,23 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   const y = size * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r);
   
   const getColor = () => {
+    if (isOwnCastle) return 'fill-blue-600'; // Kendi kalesi
     if (isEnemyCastle) return 'fill-red-600'; // Düşman kalesi
-    if (hasPlayer) return 'fill-blue-600'; // Oyuncu kalemi
+    if (hasPlayer) return 'fill-purple-500'; // Diğer oyuncular
     switch (type) {
       case 'castle': return 'fill-yellow-500';
       case 'forest': return 'fill-green-500';
       case 'mountain': return 'fill-gray-500';
-      case 'mine': return 'fill-yellow-500';
+      case 'mine': return 'fill-yellow-600';
       case 'chest': return 'fill-purple-500';
       default: return 'fill-blue-100';
     }
   };
 
   const getIcon = () => {
-    if (isEnemyCastle) return '🏰';
-    if (hasPlayer) return '👤';
+    if (isOwnCastle) return '🏰';
+    if (isEnemyCastle) return '⚔️';
+    if (hasPlayer) return '🏰';
     switch (type) {
       case 'castle': return '🏰';
       case 'forest': return '🌲';
@@ -95,9 +98,9 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   };
 
   return (
-    <g transform={`translate(${x + 300}, ${y + 300})`}>
+    <g transform={`translate(${x + 400}, ${y + 400})`}>
       <polygon
-        points="-26,0 -13,-22.5 13,-22.5 26,0 13,22.5 -13,22.5"
+        points="-22,0 -11,-19 11,-19 22,0 11,19 -11,19"
         className={`${getColor()} stroke-2 cursor-pointer transition-all hover:opacity-80 ${
           isSelected ? 'stroke-yellow-400' : 'stroke-gray-400'
         } ${isEnemyCastle ? 'hover:stroke-red-400' : ''}`}
@@ -105,7 +108,7 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
       />
       <text 
         x="0" 
-        y="0" 
+        y="2" 
         textAnchor="middle" 
         className="text-xs pointer-events-none"
       >
@@ -114,11 +117,11 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
       {playerName && (
         <text 
           x="0" 
-          y="15" 
+          y="14" 
           textAnchor="middle" 
-          className="text-[8px] fill-current text-foreground pointer-events-none"
+          className="text-[7px] fill-current text-foreground pointer-events-none font-bold"
         >
-          {playerName.slice(0, 6)}
+          {playerName.slice(0, 8)}
         </text>
       )}
     </g>
@@ -130,19 +133,35 @@ export const HexGrid = () => {
   const { user } = useAuth();
   const [tiles, setTiles] = useState<Array<{q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}>>([]);
   const [userPositions, setUserPositions] = useState<UserPosition[]>([]);
-  const [hasPlacedPen, setHasPlacedPen] = useState(false);
-  const [canPlacePen, setCanPlacePen] = useState(true);
+  const [hasPlacedCastle, setHasPlacedCastle] = useState(false);
+  const [canPlaceCastle, setCanPlaceCastle] = useState(true);
 
   useEffect(() => {
-    // Sabit harita oluştur
-    const fixedTiles = generateFixedMap();
-    setTiles(fixedTiles);
+    // Dünya haritası oluştur
+    const worldTiles = generateWorldMap();
+    setTiles(worldTiles);
   }, []);
 
   useEffect(() => {
     if (user) {
       fetchUserPositions();
-      checkUserPenStatus();
+      checkUserCastleStatus();
+      
+      // Realtime güncellemeler için subscription oluştur
+      const subscription = supabase
+        .channel('user_positions_changes')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'user_positions' }, 
+          (payload) => {
+            console.log('Position change detected:', payload);
+            fetchUserPositions();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(subscription);
+      };
     }
   }, [user]);
 
@@ -173,9 +192,10 @@ export const HexGrid = () => {
     })) || [];
 
     setUserPositions(positions);
+    console.log('Loaded positions:', positions);
   };
 
-  const checkUserPenStatus = async () => {
+  const checkUserCastleStatus = async () => {
     if (!user) return;
 
     const { data, error } = await supabase
@@ -185,12 +205,12 @@ export const HexGrid = () => {
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      console.error('Kalem durumu kontrol edilemedi:', error);
+      console.error('Kale durumu kontrol edilemedi:', error);
       return;
     }
 
-    setHasPlacedPen(!!data);
-    setCanPlacePen(!data);
+    setHasPlacedCastle(!!data);
+    setCanPlaceCastle(!data);
   };
 
   const handleTileClick = async (tile: {q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}) => {
@@ -205,23 +225,53 @@ export const HexGrid = () => {
       }
     }
 
+    // Kendi kalemizi taşımak istiyoruz
+    if (playerOnTile && playerOnTile.user_id === user?.id) {
+      const shouldMove = confirm('Kalenizi bu konuma taşımak istiyor musunuz?');
+      if (shouldMove) {
+        await moveCastle(tile);
+        return;
+      }
+    }
+
     dispatch({ 
       type: 'SELECT_TILE', 
       payload: { ...tile, owner: 'player' } 
     });
 
-    // Kalem yerleştirme
-    if (canPlacePen && user && !playerOnTile) {
-      const shouldPlace = confirm('Bu konuma kaleminizi yerleştirmek istiyor musunuz? Bu hakkınızı sadece bir kez kullanabilirsiniz.');
+    // İlk kale yerleştirme veya boş alana kale yerleştirme
+    if ((canPlaceCastle || !hasPlacedCastle) && user && !playerOnTile) {
+      const message = hasPlacedCastle 
+        ? 'Kalenizi bu konuma taşımak istiyor musunuz?' 
+        : 'Bu konuma kalenizi yerleştirmek istiyor musunuz?';
+      
+      const shouldPlace = confirm(message);
       
       if (shouldPlace) {
-        await placePenOnTile(tile);
+        await placeCastleOnTile(tile);
       }
-    } else if (playerOnTile && playerOnTile.user_id === user?.id) {
-      toast.info('Bu sizin kaleniz!');
-    } else if (playerOnTile) {
-      toast.info(`Bu ${playerOnTile.username} kullanıcısının kalesi!`);
     }
+  };
+
+  const moveCastle = async (tile: {q: number, r: number, s: number}) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('user_positions')
+      .update({
+        q: tile.q,
+        r: tile.r,
+        s: tile.s
+      })
+      .eq('user_id', user.id);
+
+    if (error) {
+      toast.error('Kale taşınamadı: ' + error.message);
+      return;
+    }
+
+    toast.success('Kaleniz başarıyla taşındı!');
+    await fetchUserPositions();
   };
 
   const startBattle = (enemy: UserPosition) => {
@@ -235,9 +285,16 @@ export const HexGrid = () => {
     });
   };
 
-  const placePenOnTile = async (tile: {q: number, r: number, s: number}) => {
+  const placeCastleOnTile = async (tile: {q: number, r: number, s: number}) => {
     if (!user) return;
 
+    if (hasPlacedCastle) {
+      // Mevcut kaleyi güncelle
+      await moveCastle(tile);
+      return;
+    }
+
+    // Yeni kale yerleştir
     const { error } = await supabase
       .from('user_positions')
       .insert([{
@@ -248,13 +305,13 @@ export const HexGrid = () => {
       }]);
 
     if (error) {
-      toast.error('Kalem yerleştirilemedi: ' + error.message);
+      toast.error('Kale yerleştirilemedi: ' + error.message);
       return;
     }
 
-    toast.success('Kaleminiz başarıyla yerleştirildi!');
-    setHasPlacedPen(true);
-    setCanPlacePen(false);
+    toast.success('Kaleniz başarıyla yerleştirildi!');
+    setHasPlacedCastle(true);
+    setCanPlaceCastle(false);
     await fetchUserPositions();
   };
 
@@ -262,69 +319,99 @@ export const HexGrid = () => {
     return userPositions.find(pos => pos.q === q && pos.r === r);
   };
 
+  // Rastgele pozisyon önerme fonksiyonu
+  const suggestRandomPosition = () => {
+    const availableTiles = tiles.filter(tile => {
+      const hasPlayer = getPlayerOnTile(tile.q, tile.r);
+      return !hasPlayer && tile.type === 'plain';
+    });
+    
+    if (availableTiles.length > 0) {
+      const randomTile = availableTiles[Math.floor(Math.random() * availableTiles.length)];
+      handleTileClick(randomTile);
+    } else {
+      toast.info('Uygun boş alan bulunamadı');
+    }
+  };
+
   return (
     <div className="w-full h-full bg-gradient-to-br from-green-50 to-blue-50 overflow-hidden">
       <div className="p-4">
-        {canPlacePen && (
+        {canPlaceCastle && !hasPlacedCastle && (
           <div className="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
-            <p className="text-sm text-blue-800">
-              🎯 Haritada bir konuma tıklayarak kaleminizi yerleştirebilirsiniz. Bu hakkınızı sadece bir kez kullanabilirsiniz!
+            <p className="text-sm text-blue-800 mb-2">
+              🏰 Dünya haritasında bir konuma tıklayarak kalenizi yerleştirebilirsiniz.
             </p>
+            <button 
+              onClick={suggestRandomPosition}
+              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+            >
+              Rastgele Pozisyon Öner
+            </button>
           </div>
         )}
-        {hasPlacedPen && (
+        {hasPlacedCastle && (
           <div className="mb-4 p-3 bg-green-100 border border-green-300 rounded-lg">
             <p className="text-sm text-green-800">
-              ✅ Kaleminizi haritaya yerleştirdiniz! Düşman kalelerine tıklayarak savaşa başlayabilirsiniz.
+              ✅ Kaleniz haritada! Düşman kalelerine (⚔️) tıklayarak savaşa başlayabilir, kendi kalenize tıklayarak taşıyabilirsiniz.
             </p>
           </div>
         )}
       </div>
       
       <div className="w-full h-full flex items-center justify-center">
-        <svg width="600" height="600" viewBox="0 0 600 600">
-          {tiles.map((tile, index) => {
-            const playerOnTile = getPlayerOnTile(tile.q, tile.r);
-            const isEnemyCastle = playerOnTile && playerOnTile.user_id !== user?.id;
-            const isOwnCastle = playerOnTile && playerOnTile.user_id === user?.id;
-            
-            return (
-              <HexTile
-                key={index}
-                q={tile.q}
-                r={tile.r}
-                s={tile.s}
-                type={tile.type}
-                onClick={() => handleTileClick(tile)}
-                isSelected={state.selectedTile?.q === tile.q && state.selectedTile?.r === tile.r}
-                hasPlayer={isOwnCastle}
-                playerName={playerOnTile?.username}
-                isEnemyCastle={isEnemyCastle}
-              />
-            );
-          })}
-        </svg>
+        <div className="overflow-auto max-h-[600px] max-w-[800px]">
+          <svg width="800" height="800" viewBox="0 0 800 800">
+            {tiles.map((tile, index) => {
+              const playerOnTile = getPlayerOnTile(tile.q, tile.r);
+              const isOwnCastle = playerOnTile && playerOnTile.user_id === user?.id;
+              const isEnemyCastle = playerOnTile && playerOnTile.user_id !== user?.id;
+              
+              return (
+                <HexTile
+                  key={index}
+                  q={tile.q}
+                  r={tile.r}
+                  s={tile.s}
+                  type={tile.type}
+                  onClick={() => handleTileClick(tile)}
+                  isSelected={state.selectedTile?.q === tile.q && state.selectedTile?.r === tile.r}
+                  hasPlayer={!!playerOnTile}
+                  playerName={playerOnTile?.username}
+                  isOwnCastle={isOwnCastle}
+                  isEnemyCastle={isEnemyCastle}
+                />
+              );
+            })}
+          </svg>
+        </div>
       </div>
       
       <div className="p-4">
         <div className="bg-white/90 rounded-lg p-4 shadow-sm">
-          <h3 className="text-sm font-semibold mb-2">Haritadaki Kaleler ({userPositions.length})</h3>
-          <div className="grid grid-cols-2 gap-2 text-xs">
+          <h3 className="text-sm font-semibold mb-2">Dünya Haritası - Aktif Kaleler ({userPositions.length})</h3>
+          <div className="grid grid-cols-2 gap-2 text-xs max-h-32 overflow-y-auto">
             {userPositions.map(pos => (
-              <div key={pos.id} className="flex items-center gap-1">
+              <div key={pos.id} className="flex items-center gap-2">
                 <span className={pos.user_id === user?.id ? "text-blue-600" : "text-red-600"}>
-                  {pos.user_id === user?.id ? '👤' : '🏰'}
+                  {pos.user_id === user?.id ? '🏰' : '⚔️'}
                 </span>
-                <span className={pos.user_id === user?.id ? "" : "font-bold"}>
-                  {pos.user_id === user?.id ? `${pos.username} (Sen)` : pos.username}
+                <span className={pos.user_id === user?.id ? "font-bold text-blue-600" : ""}>
+                  {pos.user_id === user?.id ? `${pos.username} (Sen)` : `${pos.username} Kalesi`}
                 </span>
-                <span className="text-gray-500">({pos.q},{pos.r})</span>
+                <span className="text-gray-500 text-[10px]">({pos.q},{pos.r})</span>
               </div>
             ))}
           </div>
           {userPositions.length === 0 && (
-            <p className="text-xs text-gray-500">Henüz hiçbir oyuncu kalem yerleştirmemiş.</p>
+            <p className="text-xs text-gray-500">Dünya haritası henüz boş. İlk kaleyi sen inşa et!</p>
           )}
+          
+          <div className="mt-3 pt-2 border-t border-gray-200">
+            <p className="text-xs text-gray-600">
+              🌍 <strong>Dünya Sunucusu:</strong> Tüm oyuncular aynı haritada
+            </p>
+          </div>
         </div>
       </div>
     </div>
