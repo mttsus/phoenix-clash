@@ -133,8 +133,7 @@ export const HexGrid = () => {
   const { user } = useAuth();
   const [tiles, setTiles] = useState<Array<{q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}>>([]);
   const [userPositions, setUserPositions] = useState<UserPosition[]>([]);
-  const [hasPlacedCastle, setHasPlacedCastle] = useState(false);
-  const [canPlaceCastle, setCanPlaceCastle] = useState(true);
+  const [userHasPosition, setUserHasPosition] = useState(false);
 
   useEffect(() => {
     // Dünya haritası oluştur
@@ -145,7 +144,7 @@ export const HexGrid = () => {
   useEffect(() => {
     if (user) {
       fetchUserPositions();
-      checkUserCastleStatus();
+      checkUserPosition();
       
       // Realtime güncellemeler için subscription oluştur
       const subscription = supabase
@@ -195,7 +194,7 @@ export const HexGrid = () => {
     console.log('Loaded positions:', positions);
   };
 
-  const checkUserCastleStatus = async () => {
+  const checkUserPosition = async () => {
     if (!user) return;
 
     const { data, error } = await supabase
@@ -205,12 +204,11 @@ export const HexGrid = () => {
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      console.error('Kale durumu kontrol edilemedi:', error);
+      console.error('Kullanıcı pozisyonu kontrol edilemedi:', error);
       return;
     }
 
-    setHasPlacedCastle(!!data);
-    setCanPlaceCastle(!data);
+    setUserHasPosition(!!data);
   };
 
   const handleTileClick = async (tile: {q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}) => {
@@ -239,16 +237,12 @@ export const HexGrid = () => {
       payload: { ...tile, owner: 'player' } 
     });
 
-    // İlk kale yerleştirme veya boş alana kale yerleştirme
-    if ((canPlaceCastle || !hasPlacedCastle) && user && !playerOnTile) {
-      const message = hasPlacedCastle 
-        ? 'Kalenizi bu konuma taşımak istiyor musunuz?' 
-        : 'Bu konuma kalenizi yerleştirmek istiyor musunuz?';
+    // Boş alana kale taşıma (sadece kendi kalemiz varsa)
+    if (userHasPosition && user && !playerOnTile) {
+      const shouldMove = confirm('Kalenizi bu konuma taşımak istiyor musunuz?');
       
-      const shouldPlace = confirm(message);
-      
-      if (shouldPlace) {
-        await placeCastleOnTile(tile);
+      if (shouldMove) {
+        await moveCastle(tile);
       }
     }
   };
@@ -285,75 +279,24 @@ export const HexGrid = () => {
     });
   };
 
-  const placeCastleOnTile = async (tile: {q: number, r: number, s: number}) => {
-    if (!user) return;
-
-    if (hasPlacedCastle) {
-      // Mevcut kaleyi güncelle
-      await moveCastle(tile);
-      return;
-    }
-
-    // Yeni kale yerleştir
-    const { error } = await supabase
-      .from('user_positions')
-      .insert([{
-        user_id: user.id,
-        q: tile.q,
-        r: tile.r,
-        s: tile.s
-      }]);
-
-    if (error) {
-      toast.error('Kale yerleştirilemedi: ' + error.message);
-      return;
-    }
-
-    toast.success('Kaleniz başarıyla yerleştirildi!');
-    setHasPlacedCastle(true);
-    setCanPlaceCastle(false);
-    await fetchUserPositions();
-  };
-
   const getPlayerOnTile = (q: number, r: number) => {
     return userPositions.find(pos => pos.q === q && pos.r === r);
-  };
-
-  // Rastgele pozisyon önerme fonksiyonu
-  const suggestRandomPosition = () => {
-    const availableTiles = tiles.filter(tile => {
-      const hasPlayer = getPlayerOnTile(tile.q, tile.r);
-      return !hasPlayer && tile.type === 'plain';
-    });
-    
-    if (availableTiles.length > 0) {
-      const randomTile = availableTiles[Math.floor(Math.random() * availableTiles.length)];
-      handleTileClick(randomTile);
-    } else {
-      toast.info('Uygun boş alan bulunamadı');
-    }
   };
 
   return (
     <div className="w-full h-full bg-gradient-to-br from-green-50 to-blue-50 overflow-hidden">
       <div className="p-4">
-        {canPlaceCastle && !hasPlacedCastle && (
-          <div className="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
-            <p className="text-sm text-blue-800 mb-2">
-              🏰 Dünya haritasında bir konuma tıklayarak kalenizi yerleştirebilirsiniz.
+        {!userHasPosition && (
+          <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              ⏳ Kaleniz otomatik olarak yerleştiriliyor... Sayfayı yenileyin.
             </p>
-            <button 
-              onClick={suggestRandomPosition}
-              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
-            >
-              Rastgele Pozisyon Öner
-            </button>
           </div>
         )}
-        {hasPlacedCastle && (
+        {userHasPosition && (
           <div className="mb-4 p-3 bg-green-100 border border-green-300 rounded-lg">
             <p className="text-sm text-green-800">
-              ✅ Kaleniz haritada! Düşman kalelerine (⚔️) tıklayarak savaşa başlayabilir, kendi kalenize tıklayarak taşıyabilirsiniz.
+              ✅ Kaleniz dünya haritasında! Düşman kalelerine (⚔️) tıklayarak savaş başlatabilir, kendi kalenizi (🏰) istediğiniz yere taşıyabilirsiniz.
             </p>
           </div>
         )}
@@ -389,7 +332,7 @@ export const HexGrid = () => {
       
       <div className="p-4">
         <div className="bg-white/90 rounded-lg p-4 shadow-sm">
-          <h3 className="text-sm font-semibold mb-2">Dünya Haritası - Aktif Kaleler ({userPositions.length})</h3>
+          <h3 className="text-sm font-semibold mb-2">Dünya Sunucusu - Aktif Kaleler ({userPositions.length})</h3>
           <div className="grid grid-cols-2 gap-2 text-xs max-h-32 overflow-y-auto">
             {userPositions.map(pos => (
               <div key={pos.id} className="flex items-center gap-2">
@@ -397,19 +340,19 @@ export const HexGrid = () => {
                   {pos.user_id === user?.id ? '🏰' : '⚔️'}
                 </span>
                 <span className={pos.user_id === user?.id ? "font-bold text-blue-600" : ""}>
-                  {pos.user_id === user?.id ? `${pos.username} (Sen)` : `${pos.username} Kalesi`}
+                  {pos.user_id === user?.id ? `${pos.username} (Sen)` : `${pos.username}`}
                 </span>
                 <span className="text-gray-500 text-[10px]">({pos.q},{pos.r})</span>
               </div>
             ))}
           </div>
           {userPositions.length === 0 && (
-            <p className="text-xs text-gray-500">Dünya haritası henüz boş. İlk kaleyi sen inşa et!</p>
+            <p className="text-xs text-gray-500">Dünya haritası yükleniyor...</p>
           )}
           
           <div className="mt-3 pt-2 border-t border-gray-200">
             <p className="text-xs text-gray-600">
-              🌍 <strong>Dünya Sunucusu:</strong> Tüm oyuncular aynı haritada
+              🌍 <strong>Dünya Sunucusu:</strong> Tüm oyuncular aynı haritada otomatik yerleştirilir
             </p>
           </div>
         </div>
