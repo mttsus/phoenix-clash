@@ -14,7 +14,318 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      game_catapults: {
+        Row: {
+          created_at: string | null
+          damage: number
+          health: number
+          id: string
+          is_destroyed: boolean | null
+          last_shot_at: string | null
+          max_health: number
+          position_x: number
+          position_y: number
+          range_radius: number
+          reload_time: number
+          room_id: string | null
+          team: number
+        }
+        Insert: {
+          created_at?: string | null
+          damage?: number
+          health?: number
+          id?: string
+          is_destroyed?: boolean | null
+          last_shot_at?: string | null
+          max_health?: number
+          position_x: number
+          position_y: number
+          range_radius?: number
+          reload_time?: number
+          room_id?: string | null
+          team: number
+        }
+        Update: {
+          created_at?: string | null
+          damage?: number
+          health?: number
+          id?: string
+          is_destroyed?: boolean | null
+          last_shot_at?: string | null
+          max_health?: number
+          position_x?: number
+          position_y?: number
+          range_radius?: number
+          reload_time?: number
+          room_id?: string | null
+          team?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_catapults_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_events: {
+        Row: {
+          created_at: string | null
+          data: Json | null
+          event_type: string
+          id: string
+          room_id: string | null
+          team: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          data?: Json | null
+          event_type: string
+          id?: string
+          room_id?: string | null
+          team?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json | null
+          event_type?: string
+          id?: string
+          room_id?: string | null
+          team?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_events_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_participants: {
+        Row: {
+          id: string
+          joined_at: string | null
+          player_id: string
+          player_name: string
+          ready: boolean | null
+          room_id: string | null
+          team: number
+        }
+        Insert: {
+          id?: string
+          joined_at?: string | null
+          player_id: string
+          player_name: string
+          ready?: boolean | null
+          room_id?: string | null
+          team: number
+        }
+        Update: {
+          id?: string
+          joined_at?: string | null
+          player_id?: string
+          player_name?: string
+          ready?: boolean | null
+          room_id?: string | null
+          team?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_results: {
+        Row: {
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          room_id: string | null
+          team1_score: number | null
+          team2_score: number | null
+          winner_team: number | null
+        }
+        Insert: {
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          room_id?: string | null
+          team1_score?: number | null
+          team2_score?: number | null
+          winner_team?: number | null
+        }
+        Update: {
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          room_id?: string | null
+          team1_score?: number | null
+          team2_score?: number | null
+          winner_team?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_results_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_rooms: {
+        Row: {
+          created_at: string | null
+          current_players: number | null
+          id: string
+          max_players: number | null
+          name: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_players?: number | null
+          id?: string
+          max_players?: number | null
+          name: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_players?: number | null
+          id?: string
+          max_players?: number | null
+          name?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      game_towers: {
+        Row: {
+          created_at: string | null
+          damage: number
+          health: number
+          id: string
+          is_destroyed: boolean | null
+          max_health: number
+          position_x: number
+          position_y: number
+          range_radius: number
+          room_id: string | null
+          team: number
+          tower_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          damage?: number
+          health?: number
+          id?: string
+          is_destroyed?: boolean | null
+          max_health?: number
+          position_x: number
+          position_y: number
+          range_radius?: number
+          room_id?: string | null
+          team: number
+          tower_type: string
+        }
+        Update: {
+          created_at?: string | null
+          damage?: number
+          health?: number
+          id?: string
+          is_destroyed?: boolean | null
+          max_health?: number
+          position_x?: number
+          position_y?: number
+          range_radius?: number
+          room_id?: string | null
+          team?: number
+          tower_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_towers_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_units: {
+        Row: {
+          created_at: string | null
+          damage: number
+          health: number
+          id: string
+          is_alive: boolean | null
+          max_health: number
+          position_x: number
+          position_y: number
+          room_id: string | null
+          speed: number
+          target_x: number | null
+          target_y: number | null
+          team: number
+          unit_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          damage: number
+          health: number
+          id?: string
+          is_alive?: boolean | null
+          max_health: number
+          position_x: number
+          position_y: number
+          room_id?: string | null
+          speed?: number
+          target_x?: number | null
+          target_y?: number | null
+          team: number
+          unit_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          damage?: number
+          health?: number
+          id?: string
+          is_alive?: boolean | null
+          max_health?: number
+          position_x?: number
+          position_y?: number
+          room_id?: string | null
+          speed?: number
+          target_x?: number | null
+          target_y?: number | null
+          team?: number
+          unit_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_units_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "game_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
