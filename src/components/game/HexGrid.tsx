@@ -154,6 +154,9 @@ export const HexGrid = () => {
           (payload) => {
             console.log('Position change detected:', payload);
             fetchUserPositions();
+            if (payload.eventType === 'UPDATE' && payload.new?.user_id === user.id) {
+              toast.success('Kaleniz başarıyla taşındı!');
+            }
           }
         )
         .subscribe();
@@ -165,6 +168,8 @@ export const HexGrid = () => {
   }, [user]);
 
   const fetchUserPositions = async () => {
+    console.log('Fetching user positions...');
+    
     const { data, error } = await supabase
       .from('user_positions')
       .select(`
@@ -181,6 +186,8 @@ export const HexGrid = () => {
       return;
     }
 
+    console.log('Raw user positions data:', data);
+
     const positions = data?.map(pos => ({
       id: pos.id,
       user_id: pos.user_id,
@@ -190,8 +197,8 @@ export const HexGrid = () => {
       username: (pos.profiles as any)?.username || 'Anonim'
     })) || [];
 
+    console.log('Processed positions:', positions);
     setUserPositions(positions);
-    console.log('Loaded positions:', positions);
   };
 
   const checkUserPosition = async () => {
@@ -199,7 +206,7 @@ export const HexGrid = () => {
 
     const { data, error } = await supabase
       .from('user_positions')
-      .select('id')
+      .select('id, q, r, s')
       .eq('user_id', user.id)
       .single();
 
@@ -208,6 +215,7 @@ export const HexGrid = () => {
       return;
     }
 
+    console.log('User position data:', data);
     setUserHasPosition(!!data);
   };
 
@@ -223,12 +231,12 @@ export const HexGrid = () => {
       }
     }
 
-    // Kendi kalemizi taşımak istiyoruz
-    if (playerOnTile && playerOnTile.user_id === user?.id) {
-      const shouldMove = confirm('Kalenizi bu konuma taşımak istiyor musunuz?');
+    // Boş alana kale taşıma (sadece kendi kalemiz varsa)
+    if (userHasPosition && user && !playerOnTile) {
+      const shouldMove = confirm(`Kalenizi (${tile.q}, ${tile.r}) konumuna taşımak istiyor musunuz?`);
+      
       if (shouldMove) {
         await moveCastle(tile);
-        return;
       }
     }
 
@@ -236,36 +244,38 @@ export const HexGrid = () => {
       type: 'SELECT_TILE', 
       payload: { ...tile, owner: 'player' } 
     });
-
-    // Boş alana kale taşıma (sadece kendi kalemiz varsa)
-    if (userHasPosition && user && !playerOnTile) {
-      const shouldMove = confirm('Kalenizi bu konuma taşımak istiyor musunuz?');
-      
-      if (shouldMove) {
-        await moveCastle(tile);
-      }
-    }
   };
 
   const moveCastle = async (tile: {q: number, r: number, s: number}) => {
     if (!user) return;
 
-    const { error } = await supabase
-      .from('user_positions')
-      .update({
-        q: tile.q,
-        r: tile.r,
-        s: tile.s
-      })
-      .eq('user_id', user.id);
+    console.log('Moving castle to:', tile);
 
-    if (error) {
-      toast.error('Kale taşınamadı: ' + error.message);
-      return;
+    try {
+      const { error } = await supabase
+        .from('user_positions')
+        .update({
+          q: tile.q,
+          r: tile.r,
+          s: tile.s
+        })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Kale taşıma hatası:', error);
+        toast.error('Kale taşınamadı: ' + error.message);
+        return;
+      }
+
+      console.log('Castle moved successfully');
+      // Toast realtime event'te gösterilecek
+      
+      // Pozisyonları hemen güncelle
+      await fetchUserPositions();
+    } catch (err) {
+      console.error('Beklenmeyen hata:', err);
+      toast.error('Beklenmeyen bir hata oluştu');
     }
-
-    toast.success('Kaleniz başarıyla taşındı!');
-    await fetchUserPositions();
   };
 
   const startBattle = (enemy: UserPosition) => {
@@ -283,6 +293,13 @@ export const HexGrid = () => {
     return userPositions.find(pos => pos.q === q && pos.r === r);
   };
 
+  const getUserPosition = () => {
+    if (!user) return null;
+    return userPositions.find(pos => pos.user_id === user.id);
+  };
+
+  const currentUserPosition = getUserPosition();
+
   return (
     <div className="w-full h-full bg-gradient-to-br from-green-50 to-blue-50 overflow-hidden">
       <div className="p-4">
@@ -293,10 +310,10 @@ export const HexGrid = () => {
             </p>
           </div>
         )}
-        {userHasPosition && (
+        {userHasPosition && currentUserPosition && (
           <div className="mb-4 p-3 bg-green-100 border border-green-300 rounded-lg">
             <p className="text-sm text-green-800">
-              ✅ Kaleniz dünya haritasında! Düşman kalelerine (⚔️) tıklayarak savaş başlatabilir, kendi kalenizi (🏰) istediğiniz yere taşıyabilirsiniz.
+              ✅ Kaleniz ({currentUserPosition.q}, {currentUserPosition.r}) konumunda! Düşman kalelerine (⚔️) tıklayarak savaş başlatabilir, boş alanlara tıklayarak kalenizi taşıyabilirsiniz.
             </p>
           </div>
         )}
@@ -352,7 +369,7 @@ export const HexGrid = () => {
           
           <div className="mt-3 pt-2 border-t border-gray-200">
             <p className="text-xs text-gray-600">
-              🌍 <strong>Dünya Sunucusu:</strong> Tüm oyuncular aynı haritada otomatik yerleştirilir
+              🌍 <strong>Dünya Sunucusu:</strong> Tüm oyuncular aynı haritada! Boş alanlara tıklayarak kalenizi taşıyın.
             </p>
           </div>
         </div>
