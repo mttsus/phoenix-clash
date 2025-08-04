@@ -57,7 +57,7 @@ const HexTile = ({ q, r, s, type, onClick, isSelected }: {
 
 export const HexGrid = () => {
   const { state, dispatch } = useGame();
-  const [tiles, setTiles] = useState<Array<{q: number, r: number, s: number, type: string}>>([]);
+  const [tiles, setTiles] = useState<Array<{q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}>>([]);
 
   useEffect(() => {
     // Temel hex grid oluşturma (7x7 grid)
@@ -71,7 +71,7 @@ export const HexGrid = () => {
         const s = -q - r;
         
         // Rastgele tile tipi
-        let type = 'plain';
+        let type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest' = 'plain';
         const rand = Math.random();
         if (q === 0 && r === 0) type = 'castle'; // Merkez kale
         else if (rand < 0.2) type = 'forest';
@@ -86,7 +86,7 @@ export const HexGrid = () => {
     setTiles(newTiles);
   }, []);
 
-  const handleTileClick = (tile: {q: number, r: number, s: number, type: string}) => {
+  const handleTileClick = (tile: {q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}) => {
     dispatch({ 
       type: 'SELECT_TILE', 
       payload: { ...tile, owner: 'player' } 
