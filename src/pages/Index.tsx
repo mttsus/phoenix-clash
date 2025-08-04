@@ -5,9 +5,10 @@ import { HexGrid } from '@/components/game/HexGrid';
 import { ResourcePanel } from '@/components/game/ResourcePanel';
 import { ArmyPanel } from '@/components/game/ArmyPanel';
 import { BattleSystem } from '@/components/game/BattleSystem';
+import { BattleArena } from '@/components/game/BattleArena';
 import { GameProvider } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
-import { Swords, LogOut, User } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const Index = () => {
@@ -27,7 +28,6 @@ const Index = () => {
   return (
     <GameProvider>
       <div className="min-h-screen bg-background">
-        {/* Ana Oyun Arayüzü */}
         <div className="flex flex-col h-screen">
           {/* Üst Panel - Kaynaklar ve Kontroller */}
           <div className="h-20 border-b border-border flex">
@@ -39,14 +39,6 @@ const Index = () => {
                 <User className="w-4 h-4" />
                 <span>Hoşgeldin, {user.user_metadata?.username || user.email?.split('@')[0]}</span>
               </div>
-              <Button
-                onClick={() => navigate('/arena')}
-                className="flex items-center gap-2"
-                variant="outline"
-              >
-                <Swords className="w-4 h-4" />
-                Multiplayer Arena
-              </Button>
               <Button
                 onClick={handleSignOut}
                 variant="outline"
@@ -77,6 +69,9 @@ const Index = () => {
             </div>
           </div>
         </div>
+        
+        {/* Savaş Arenası Modal */}
+        <BattleArena />
       </div>
     </GameProvider>
   );

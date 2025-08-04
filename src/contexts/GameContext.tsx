@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useReducer, ReactNode } from 'react';
 
 export interface Resources {
@@ -26,6 +25,19 @@ export interface HexTile {
   army?: ArmyUnit[];
 }
 
+export interface BattleState {
+  inBattle: boolean;
+  enemy?: {
+    id: string;
+    user_id: string;
+    username: string;
+    q: number;
+    r: number;
+    s: number;
+  };
+  playerArmy: ArmyUnit[];
+}
+
 export interface GameState {
   resources: Resources;
   productionRate: number;
@@ -35,6 +47,7 @@ export interface GameState {
   hexTiles: HexTile[];
   selectedTile: HexTile | null;
   lastUpdate: number;
+  battleState: BattleState;
 }
 
 const initialState: GameState = {
@@ -45,13 +58,17 @@ const initialState: GameState = {
     wheat: 5000,
     stone: 5000
   },
-  productionRate: 1500, // saatte 1500 her kaynak
+  productionRate: 1500,
   isRestructuringMode: false,
   consecutiveLosses: 0,
   army: [],
   hexTiles: [],
   selectedTile: null,
-  lastUpdate: Date.now()
+  lastUpdate: Date.now(),
+  battleState: {
+    inBattle: false,
+    playerArmy: []
+  }
 };
 
 type GameAction = 
@@ -61,7 +78,9 @@ type GameAction =
   | { type: 'SELECT_TILE'; payload: HexTile | null }
   | { type: 'BATTLE_RESULT'; payload: { won: boolean } }
   | { type: 'ENTER_RESTRUCTURING_MODE' }
-  | { type: 'EXIT_RESTRUCTURING_MODE' };
+  | { type: 'EXIT_RESTRUCTURING_MODE' }
+  | { type: 'START_BATTLE'; payload: { enemy: any; playerArmy: ArmyUnit[] } }
+  | { type: 'END_BATTLE' };
 
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -90,7 +109,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     
     case 'CREATE_ARMY_UNIT':
-      // Ordu oluşturma maliyeti: 500 her kaynak
       const cost = 500;
       if (Object.values(state.resources).every(resource => resource >= cost)) {
         return {
@@ -109,6 +127,25 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     
     case 'SELECT_TILE':
       return { ...state, selectedTile: action.payload };
+    
+    case 'START_BATTLE':
+      return {
+        ...state,
+        battleState: {
+          inBattle: true,
+          enemy: action.payload.enemy,
+          playerArmy: action.payload.playerArmy
+        }
+      };
+    
+    case 'END_BATTLE':
+      return {
+        ...state,
+        battleState: {
+          inBattle: false,
+          playerArmy: []
+        }
+      };
     
     case 'BATTLE_RESULT':
       const newLosses = action.payload.won ? 0 : state.consecutiveLosses + 1;
