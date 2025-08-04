@@ -326,6 +326,57 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      user_positions: {
+        Row: {
+          id: string
+          placed_at: string
+          q: number
+          r: number
+          s: number
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          placed_at?: string
+          q: number
+          r: number
+          s: number
+          user_id: string
+        }
+        Update: {
+          id?: string
+          placed_at?: string
+          q?: number
+          r?: number
+          s?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

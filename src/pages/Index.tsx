@@ -7,22 +7,38 @@ import { ArmyPanel } from '@/components/game/ArmyPanel';
 import { BattleSystem } from '@/components/game/BattleSystem';
 import { GameProvider } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
-import { Swords } from 'lucide-react';
+import { Swords, LogOut, User } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const Index = () => {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  if (!user) {
+    navigate('/auth');
+    return null;
+  }
 
   return (
     <GameProvider>
       <div className="min-h-screen bg-background">
         {/* Ana Oyun Arayüzü */}
         <div className="flex flex-col h-screen">
-          {/* Üst Panel - Kaynaklar ve Arena Butonu */}
+          {/* Üst Panel - Kaynaklar ve Kontroller */}
           <div className="h-20 border-b border-border flex">
             <div className="flex-1">
               <ResourcePanel />
             </div>
-            <div className="flex items-center px-4">
+            <div className="flex items-center gap-2 px-4">
+              <div className="flex items-center gap-2 text-sm">
+                <User className="w-4 h-4" />
+                <span>Hoşgeldin, {user.user_metadata?.username || user.email?.split('@')[0]}</span>
+              </div>
               <Button
                 onClick={() => navigate('/arena')}
                 className="flex items-center gap-2"
@@ -30,6 +46,15 @@ const Index = () => {
               >
                 <Swords className="w-4 h-4" />
                 Multiplayer Arena
+              </Button>
+              <Button
+                onClick={handleSignOut}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                Çıkış
               </Button>
             </div>
           </div>
