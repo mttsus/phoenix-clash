@@ -134,6 +134,7 @@ export const HexGrid = () => {
   const [tiles, setTiles] = useState<Array<{q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}>>([]);
   const [userPositions, setUserPositions] = useState<UserPosition[]>([]);
   const [userHasPosition, setUserHasPosition] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
 
   useEffect(() => {
     // Dünya haritası oluştur
@@ -143,8 +144,7 @@ export const HexGrid = () => {
 
   useEffect(() => {
     if (user) {
-      fetchUserPositions();
-      checkUserPosition();
+      initializeUserPositions();
       
       // Realtime güncellemeler için subscription oluştur
       const subscription = supabase
@@ -155,7 +155,8 @@ export const HexGrid = () => {
             console.log('Position change detected:', payload);
             fetchUserPositions();
             if (payload.eventType === 'UPDATE' && payload.new?.user_id === user.id) {
-              toast.success('Kaleniz başarıyla taşındı!');
+              setIsMoving(false);
+              toast.success(`Kaleniz (${payload.new.q}, ${payload.new.r}) konumuna başarıyla taşındı!`);
             }
           }
         )
@@ -166,6 +167,16 @@ export const HexGrid = () => {
       };
     }
   }, [user]);
+
+  const initializeUserPositions = async () => {
+    await fetchUserPositions();
+    await checkUserPosition();
+    
+    // Eğer kullanıcının pozisyonu yoksa, otomatik yerleştir
+    if (!userHasPosition) {
+      await placeExistingUsers();
+    }
+  };
 
   const fetchUserPositions = async () => {
     console.log('Fetching user positions...');
@@ -208,18 +219,43 @@ export const HexGrid = () => {
       .from('user_positions')
       .select('id, q, r, s')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       console.error('Kullanıcı pozisyonu kontrol edilemedi:', error);
       return;
     }
 
     console.log('User position data:', data);
-    setUserHasPosition(!!data);
+    const hasPosition = !!data;
+    setUserHasPosition(hasPosition);
+  };
+
+  const placeExistingUsers = async () => {
+    console.log('Placing existing users...');
+    try {
+      const { error } = await supabase.rpc('place_existing_users');
+      
+      if (error) {
+        console.error('Kullanıcı yerleştirme hatası:', error);
+        toast.error('Kale yerleştirilemedi: ' + error.message);
+      } else {
+        console.log('Users placed successfully');
+        // Pozisyonları yeniden yükle
+        await fetchUserPositions();
+        await checkUserPosition();
+      }
+    } catch (err) {
+      console.error('Beklenmeyen hata:', err);
+    }
   };
 
   const handleTileClick = async (tile: {q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}) => {
+    if (isMoving) {
+      toast.info('Kale taşınıyor, lütfen bekleyin...');
+      return;
+    }
+
     const playerOnTile = getPlayerOnTile(tile.q, tile.r);
     
     // Düşman kalesi kontrolü
@@ -247,34 +283,33 @@ export const HexGrid = () => {
   };
 
   const moveCastle = async (tile: {q: number, r: number, s: number}) => {
-    if (!user) return;
+    if (!user || isMoving) return;
 
     console.log('Moving castle to:', tile);
+    setIsMoving(true);
+    toast.info('Kale taşınıyor...');
 
     try {
-      const { error } = await supabase
-        .from('user_positions')
-        .update({
-          q: tile.q,
-          r: tile.r,
-          s: tile.s
-        })
-        .eq('user_id', user.id);
+      const { data, error } = await supabase.rpc('move_castle', {
+        target_q: tile.q,
+        target_r: tile.r,
+        target_s: tile.s
+      });
 
       if (error) {
         console.error('Kale taşıma hatası:', error);
         toast.error('Kale taşınamadı: ' + error.message);
+        setIsMoving(false);
         return;
       }
 
-      console.log('Castle moved successfully');
-      // Toast realtime event'te gösterilecek
+      console.log('Castle moved successfully', data);
+      // Başarı mesajı realtime event'te gösterilecek
       
-      // Pozisyonları hemen güncelle
-      await fetchUserPositions();
     } catch (err) {
       console.error('Beklenmeyen hata:', err);
       toast.error('Beklenmeyen bir hata oluştu');
+      setIsMoving(false);
     }
   };
 
@@ -306,14 +341,15 @@ export const HexGrid = () => {
         {!userHasPosition && (
           <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
             <p className="text-sm text-yellow-800">
-              ⏳ Kaleniz otomatik olarak yerleştiriliyor... Sayfayı yenileyin.
+              ⏳ Kaleniz otomatik olarak yerleştiriliyor... {isMoving && 'Taşınıyor...'}
             </p>
           </div>
         )}
         {userHasPosition && currentUserPosition && (
           <div className="mb-4 p-3 bg-green-100 border border-green-300 rounded-lg">
             <p className="text-sm text-green-800">
-              ✅ Kaleniz ({currentUserPosition.q}, {currentUserPosition.r}) konumunda! Düşman kalelerine (⚔️) tıklayarak savaş başlatabilir, boş alanlara tıklayarak kalenizi taşıyabilirsiniz.
+              ✅ Kaleniz ({currentUserPosition.q}, {currentUserPosition.r}) konumunda! 
+              {isMoving ? ' 🔄 Taşınıyor...' : ' Düşman kalelerine (⚔️) tıklayarak savaş başlatabilir, boş alanlara tıklayarak kalenizi taşıyabilirsiniz.'}
             </p>
           </div>
         )}
@@ -364,7 +400,7 @@ export const HexGrid = () => {
             ))}
           </div>
           {userPositions.length === 0 && (
-            <p className="text-xs text-gray-500">Dünya haritası yükleniyor...</p>
+            <p className="text-xs text-gray-500">Kaleler yükleniyor...</p>
           )}
           
           <div className="mt-3 pt-2 border-t border-gray-200">

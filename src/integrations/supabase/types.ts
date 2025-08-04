@@ -382,7 +382,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      move_castle: {
+        Args: { target_q: number; target_r: number; target_s: number }
+        Returns: boolean
+      }
+      place_existing_users: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
