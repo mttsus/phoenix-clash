@@ -1,10 +1,9 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Castle, Zap, Cannon } from 'lucide-react';
+import { Castle, Zap, Target } from 'lucide-react';
 
 interface Tower {
   id: string;
@@ -132,7 +131,7 @@ export const TowerSystem = ({ roomId, myTeam }: TowerSystemProps) => {
   const getTowerIcon = (type: string) => {
     switch (type) {
       case 'cannon':
-        return <Cannon className="w-4 h-4" />;
+        return <Target className="w-4 h-4" />;
       case 'magic':
         return <Zap className="w-4 h-4" />;
       default:
