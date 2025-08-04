@@ -153,6 +153,7 @@ export const HexGrid = () => {
           { event: '*', schema: 'public', table: 'user_positions' }, 
           (payload) => {
             console.log('Position change detected:', payload);
+            // Hemen pozisyonları yeniden yükle
             fetchUserPositions();
             if (payload.eventType === 'UPDATE' && payload.new?.user_id === user.id) {
               setIsMoving(false);
@@ -181,35 +182,41 @@ export const HexGrid = () => {
   const fetchUserPositions = async () => {
     console.log('Fetching user positions...');
     
-    const { data, error } = await supabase
-      .from('user_positions')
-      .select(`
-        id,
-        user_id,
-        q,
-        r,
-        s,
-        profiles(username)
-      `);
+    try {
+      // Önce basit sorgu ile tüm pozisyonları al
+      const { data: positions, error } = await supabase
+        .from('user_positions')
+        .select('id, user_id, q, r, s');
 
-    if (error) {
-      console.error('Kullanıcı pozisyonları yüklenemedi:', error);
-      return;
+      if (error) {
+        console.error('Kullanıcı pozisyonları yüklenemedi:', error);
+        return;
+      }
+
+      console.log('Positions fetched:', positions);
+
+      // Her pozisyon için username bilgisini al
+      const positionsWithUsernames = await Promise.all(
+        (positions || []).map(async (pos) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', pos.user_id)
+            .single();
+          
+          return {
+            ...pos,
+            username: profile?.username || 'Anonim'
+          };
+        })
+      );
+
+      console.log('Positions with usernames:', positionsWithUsernames);
+      setUserPositions(positionsWithUsernames);
+
+    } catch (err) {
+      console.error('Unexpected error in fetchUserPositions:', err);
     }
-
-    console.log('Raw user positions data:', data);
-
-    const positions = data?.map(pos => ({
-      id: pos.id,
-      user_id: pos.user_id,
-      q: pos.q,
-      r: pos.r,
-      s: pos.s,
-      username: (pos.profiles as any)?.username || 'Anonim'
-    })) || [];
-
-    console.log('Processed positions:', positions);
-    setUserPositions(positions);
   };
 
   const checkUserPosition = async () => {
@@ -242,8 +249,10 @@ export const HexGrid = () => {
       } else {
         console.log('Users placed successfully');
         // Pozisyonları yeniden yükle
-        await fetchUserPositions();
-        await checkUserPosition();
+        setTimeout(() => {
+          fetchUserPositions();
+          checkUserPosition();
+        }, 1000);
       }
     } catch (err) {
       console.error('Beklenmeyen hata:', err);
@@ -304,7 +313,14 @@ export const HexGrid = () => {
       }
 
       console.log('Castle moved successfully', data);
-      // Başarı mesajı realtime event'te gösterilecek
+      
+      // Kale taşıma sonrası pozisyonları hemen güncelle
+      setTimeout(async () => {
+        await fetchUserPositions();
+        await checkUserPosition();
+        setIsMoving(false);
+        toast.success(`Kale başarıyla (${tile.q}, ${tile.r}) konumuna taşındı!`);
+      }, 500);
       
     } catch (err) {
       console.error('Beklenmeyen hata:', err);
