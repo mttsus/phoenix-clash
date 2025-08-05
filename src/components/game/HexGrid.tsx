@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { CastleInterior } from './CastleInterior';
@@ -43,16 +44,13 @@ export const HexGrid = () => {
     return { q: Math.round(q), r: Math.round(r), s: Math.round(s) };
   };
 
-  // Fetch user positions and resource regions
+  // Fetch user positions
   const { data: userPositions } = useQuery({
     queryKey: ['userPositions'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('user_positions')
-        .select(`
-          *,
-          profiles(username)
-        `);
+        .select('*');
       
       if (error) throw error;
       return data;
@@ -60,6 +58,20 @@ export const HexGrid = () => {
     refetchInterval: 5000
   });
 
+  // Fetch profiles separately
+  const { data: profiles } = useQuery({
+    queryKey: ['profiles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username');
+      
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Fetch resource regions
   const { data: resourceRegions } = useQuery({
     queryKey: ['resourceRegions'],
     queryFn: async () => {
@@ -102,7 +114,8 @@ export const HexGrid = () => {
         const userAtPosition = userPositions?.find(pos => pos.q === q && pos.r === r && pos.s === s);
         if (userAtPosition) {
           hexColor = userAtPosition.user_id === user?.id ? '#22c55e' : '#ef4444'; // Green for own castle, red for others
-          hexText = userAtPosition.profiles?.username?.substring(0, 3) || 'U';
+          const userProfile = profiles?.find(profile => profile.id === userAtPosition.user_id);
+          hexText = userProfile?.username?.substring(0, 3) || 'U';
         }
         
         // Check if this is a resource region
@@ -124,7 +137,7 @@ export const HexGrid = () => {
         }
       }
     }
-  }, [userPositions, resourceRegions, user]);
+  }, [userPositions, resourceRegions, profiles, user]);
 
   const hexToScreen = (q: number, r: number, size: number, centerX: number, centerY: number) => {
     const x = size * (3/2 * q) + centerX;
