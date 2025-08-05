@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -25,153 +26,145 @@ export const HexGrid = ({
   const { state, dispatch } = useGame();
   const { user } = useAuth();
   const [tiles, setTiles] = useState<any[]>([]);
-  const [userPosition, setUserPosition] = useState<UserPosition | null>(null);
+  const [allUserPositions, setAllUserPositions] = useState<any[]>([]);
   const [usernames, setUsernames] = useState<{ [userId: string]: string }>({});
   const [resourceRegions, setResourceRegions] = useState<any[]>([]);
 
   useEffect(() => {
     if (user) {
-      initializeMap();
-      fetchUserPosition();
-      fetchUsernames();
-      fetchResourceRegions();
+      fetchRealMapData();
     }
   }, [user]);
 
-  const initializeMap = () => {
-    // Başlangıç haritası oluştur - küçük bir grid
-    const initialTiles = [];
-    
-    // Kullanıcının başlangıç kalesi
-    if (userPosition) {
-      initialTiles.push({
-        q: userPosition.q,
-        r: userPosition.r,
-        s: userPosition.s,
-        type: 'castle',
-        owner: user?.id
-      });
-    } else {
-      // Varsayılan başlangıç pozisyonu
-      initialTiles.push({
-        q: 0,
-        r: 0,
-        s: 0,
-        type: 'castle',
-        owner: user?.id
-      });
-    }
-
-    // Çevresine boş alanlar ekle
-    for (let q = -3; q <= 3; q++) {
-      for (let r = -3; r <= 3; r++) {
-        const s = -q - r;
-        if (Math.abs(q) + Math.abs(r) + Math.abs(s) <= 6) {
-          // Merkez kale pozisyonu değilse boş alan ekle
-          if (!(q === 0 && r === 0 && s === 0)) {
-            initialTiles.push({
-              q,
-              r,
-              s,
-              type: null,
-              owner: null
-            });
-          }
-        }
-      }
-    }
-
-    // Birkaç kaynak bölgesi ekle
-    initialTiles.push(
-      { q: 2, r: 1, s: -3, type: 'mine', owner: null },
-      { q: -1, r: 2, s: -1, type: 'forest', owner: null },
-      { q: 1, r: -2, s: 1, type: 'mine', owner: null }
-    );
-
-    console.log('Initializing map with tiles:', initialTiles);
-    setTiles(initialTiles);
-    
-    // GameContext'e de aktar
-    dispatch({ type: 'SET_HEX_TILES', payload: initialTiles });
-  };
-
-  const fetchUserPosition = async () => {
-    if (!user) return;
-
+  const fetchRealMapData = async () => {
     try {
-      const { data, error } = await supabase
+      console.log('Fetching real map data...');
+      
+      // Tüm kullanıcı pozisyonlarını getir
+      const { data: positions, error: posError } = await supabase
         .from('user_positions')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+        .select('*');
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user position:', error);
+      if (posError) {
+        console.error('Error fetching user positions:', posError);
         return;
       }
 
-      if (data) {
-        setUserPosition({
-          q: data.q,
-          r: data.r,
-          s: data.s
-        });
-      } else {
-        // Kullanıcı pozisyonu yoksa oluştur
-        const { error: insertError } = await supabase
-          .from('user_positions')
-          .insert({
-            user_id: user.id,
-            q: 0,
-            r: 0,
-            s: 0
-          });
+      console.log('User positions:', positions);
+      setAllUserPositions(positions || []);
 
-        if (!insertError) {
-          setUserPosition({ q: 0, r: 0, s: 0 });
-        }
-      }
-    } catch (error) {
-      console.error('Unexpected error:', error);
-    }
-  };
-
-  const fetchUsernames = async () => {
-    try {
-      const { data, error } = await supabase
+      // Kullanıcı adlarını getir
+      const { data: profiles, error: profileError } = await supabase
         .from('profiles')
         .select('id, username');
 
-      if (error) {
-        console.error('Error fetching usernames:', error);
-        return;
+      if (profileError) {
+        console.error('Error fetching profiles:', profileError);
+      } else {
+        const names: { [userId: string]: string } = {};
+        profiles?.forEach(profile => {
+          names[profile.id] = profile.username;
+        });
+        setUsernames(names);
+        console.log('Usernames:', names);
       }
 
-      const names: { [userId: string]: string } = {};
-      data.forEach(profile => {
-        names[profile.id] = profile.username;
-      });
-      setUsernames(names);
-    } catch (error) {
-      console.error('Unexpected error:', error);
-    }
-  };
-
-  const fetchResourceRegions = async () => {
-    try {
-      const { data, error } = await supabase
+      // Kaynak bölgelerini getir
+      const { data: regions, error: regError } = await supabase
         .from('resource_regions')
         .select('*');
 
-      if (error) {
-        console.error('Error fetching resource regions:', error);
-        return;
+      if (regError) {
+        console.error('Error fetching resource regions:', regError);
+      } else {
+        setResourceRegions(regions || []);
+        console.log('Resource regions:', regions);
       }
 
-      setResourceRegions(data);
+      // Haritayı oluştur
+      createRealMap(positions || [], regions || []);
+
     } catch (error) {
-      console.error('Unexpected error:', error);
+      console.error('Unexpected error fetching map data:', error);
     }
+  };
+
+  const createRealMap = (userPositions: any[], regions: any[]) => {
+    const mapTiles = [];
+    
+    console.log('Creating real map with positions:', userPositions, 'regions:', regions);
+
+    // Önce boş hex'leri oluştur (geniş alan)
+    for (let q = -10; q <= 10; q++) {
+      for (let r = -10; r <= 10; r++) {
+        const s = -q - r;
+        if (Math.abs(q) + Math.abs(r) + Math.abs(s) <= 20) {
+          mapTiles.push({
+            q,
+            r,
+            s,
+            type: null,
+            owner: null
+          });
+        }
+      }
+    }
+
+    // Kullanıcı kalelerini ekle
+    userPositions.forEach(pos => {
+      const existingTileIndex = mapTiles.findIndex(
+        tile => tile.q === pos.q && tile.r === pos.r && tile.s === pos.s
+      );
+      
+      if (existingTileIndex !== -1) {
+        mapTiles[existingTileIndex] = {
+          q: pos.q,
+          r: pos.r,
+          s: pos.s,
+          type: 'castle',
+          owner: pos.user_id
+        };
+      } else {
+        mapTiles.push({
+          q: pos.q,
+          r: pos.r,
+          s: pos.s,
+          type: 'castle',
+          owner: pos.user_id
+        });
+      }
+    });
+
+    // Kaynak bölgelerini ekle
+    regions.forEach(region => {
+      const existingTileIndex = mapTiles.findIndex(
+        tile => tile.q === region.q && tile.r === region.r && tile.s === region.s
+      );
+      
+      const resourceType = region.resource_type === 'wood' ? 'forest' : 'mine';
+      
+      if (existingTileIndex !== -1) {
+        mapTiles[existingTileIndex] = {
+          q: region.q,
+          r: region.r,
+          s: region.s,
+          type: resourceType,
+          owner: region.owner_id
+        };
+      } else {
+        mapTiles.push({
+          q: region.q,
+          r: region.r,
+          s: region.s,
+          type: resourceType,
+          owner: region.owner_id
+        });
+      }
+    });
+
+    console.log('Generated map tiles:', mapTiles);
+    setTiles(mapTiles);
+    dispatch({ type: 'SET_HEX_TILES', payload: mapTiles });
   };
 
   const handleHexClick = async (q: number, r: number, s: number) => {
@@ -196,19 +189,8 @@ export const HexGrid = ({
           return;
         }
 
-        // Haritayı güncelle
-        const updatedTiles = tiles.map(tile => {
-          if (tile.owner === user.id && tile.type === 'castle') {
-            return { ...tile, type: null, owner: null };
-          }
-          if (tile.q === q && tile.r === r && tile.s === s) {
-            return { ...tile, type: 'castle', owner: user.id };
-          }
-          return tile;
-        });
-
-        setTiles(updatedTiles);
-        setUserPosition({ q, r, s });
+        // Haritayı yeniden yükle
+        await fetchRealMapData();
         toast.success('Kale başarıyla taşındı!');
         
         if (onCastleMoved) {
@@ -225,7 +207,7 @@ export const HexGrid = ({
         onCastleClicked();
       }
     } else if (clickedTile.type === 'castle' && clickedTile.owner !== user.id) {
-      // Başka birinin kalesi - saldır
+      // Başka birinin kalesi - savaş başlat
       const enemyCastle = {
         id: clickedTile.owner!,
         user_id: clickedTile.owner!,
@@ -247,11 +229,32 @@ export const HexGrid = ({
       if (onBattleStarted) {
         onBattleStarted();
       }
+    } else if ((clickedTile.type === 'forest' || clickedTile.type === 'mine') && !clickedTile.owner) {
+      // Boş kaynak bölgesi - savaş başlat
+      const region = resourceRegions.find(r => r.q === q && r.r === r && r.s === s);
+      if (region) {
+        dispatch({
+          type: 'START_BATTLE',
+          payload: {
+            resourceRegion: region,
+            playerArmy: state.army,
+            battleType: 'resource'
+          }
+        });
+
+        if (onBattleStarted) {
+          onBattleStarted();
+        }
+      }
     }
   };
 
+  const getUserPosition = () => {
+    return allUserPositions.find(pos => pos.user_id === user?.id);
+  };
+
   const gridStyle: React.CSSProperties = {
-    position: 'relative',
+    position: 'relative' as const,
     width: '100%',
     height: '100%',
     backgroundImage: 'url("/images/grass_bg.png")',
@@ -259,24 +262,33 @@ export const HexGrid = ({
     minHeight: '600px'
   };
 
-  console.log('Rendering HexGrid with tiles:', tiles);
+  console.log('Rendering HexGrid with tiles:', tiles.length, 'tiles');
 
   return (
     <div style={gridStyle}>
       <svg width="100%" height="100%" viewBox="0 0 800 600">
-        {tiles.map((tile, index) => (
-          <Hexagon
-            key={`${tile.q},${tile.r},${tile.s}-${index}`}
-            q={tile.q}
-            r={tile.r}
-            s={tile.s}
-            type={tile.type}
-            owner={tile.owner}
-            isUserCastle={userPosition && tile.q === userPosition.q && tile.r === userPosition.r && tile.s === userPosition.s}
-            username={tile.owner ? usernames[tile.owner] : null}
-            onClick={handleHexClick}
-          />
-        ))}
+        {tiles.map((tile, index) => {
+          const userPos = getUserPosition();
+          const isUserCastle = userPos && 
+            tile.q === userPos.q && 
+            tile.r === userPos.r && 
+            tile.s === userPos.s && 
+            tile.owner === user?.id;
+
+          return (
+            <Hexagon
+              key={`${tile.q},${tile.r},${tile.s}-${index}`}
+              q={tile.q}
+              r={tile.r}
+              s={tile.s}
+              type={tile.type}
+              owner={tile.owner}
+              isUserCastle={isUserCastle}
+              username={tile.owner ? usernames[tile.owner] : null}
+              onClick={handleHexClick}
+            />
+          );
+        })}
       </svg>
     </div>
   );
