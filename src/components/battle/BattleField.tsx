@@ -1,6 +1,7 @@
 
 import { useGame } from '@/contexts/GameContext';
 import { ResourceBossBattle } from './ResourceBossBattle';
+import { PvPBattle } from './PvPBattle';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -39,16 +40,20 @@ export const BattleField = () => {
     return <ResourceBossBattle />;
   }
 
-  // PvP battle (existing functionality)
+  // PvP battle
+  if (state.battleState.battleType === 'pvp') {
+    return <PvPBattle />;
+  }
+
   return (
     <div className="h-full flex items-center justify-center">
       <Card className="max-w-md">
         <CardHeader>
-          <CardTitle>PvP Savaş</CardTitle>
+          <CardTitle>Bilinmeyen Savaş Türü</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground mb-4">
-            PvP savaş sistemi henüz implement edilmedi.
+            Bilinmeyen savaş türü tespit edildi.
           </p>
           <Button 
             onClick={() => dispatch({ type: 'END_BATTLE' })}
