@@ -16,6 +16,20 @@ export interface ArmyUnit {
   health: number;
 }
 
+export interface BattleUnit {
+  id: string;
+  type: 'swordsman' | 'archer' | 'cavalry' | 'mage_fire' | 'mage_ice' | 'mage_lightning';
+  x: number;
+  y: number;
+  health: number;
+  maxHealth: number;
+  damage: number;
+  team: 'player' | 'enemy';
+  target?: { x: number; y: number };
+  isMoving: boolean;
+  isAttacking: boolean;
+}
+
 export interface HexTile {
   q: number;
   r: number;
@@ -47,6 +61,11 @@ export interface BattleState {
     production_bonus: number;
   };
   playerArmy: ArmyUnit[];
+  battleUnits: BattleUnit[];
+  playerMana: number;
+  maxMana: number;
+  enemyHealth: number;
+  maxEnemyHealth: number;
 }
 
 export interface GameState {
@@ -78,7 +97,12 @@ const initialState: GameState = {
   lastUpdate: Date.now(),
   battleState: {
     inBattle: false,
-    playerArmy: []
+    playerArmy: [],
+    battleUnits: [],
+    playerMana: 10,
+    maxMana: 10,
+    enemyHealth: 0,
+    maxEnemyHealth: 0
   }
 };
 
@@ -91,7 +115,11 @@ type GameAction =
   | { type: 'ENTER_RESTRUCTURING_MODE' }
   | { type: 'EXIT_RESTRUCTURING_MODE' }
   | { type: 'START_BATTLE'; payload: { enemy?: any; resourceRegion?: any; playerArmy: ArmyUnit[]; battleType: 'pvp' | 'resource' } }
-  | { type: 'END_BATTLE' };
+  | { type: 'END_BATTLE' }
+  | { type: 'DEPLOY_UNIT'; payload: { unitType: string; x: number; y: number } }
+  | { type: 'UPDATE_BATTLE_UNITS'; payload: BattleUnit[] }
+  | { type: 'UPDATE_MANA'; payload: number }
+  | { type: 'UPDATE_ENEMY_HEALTH'; payload: number };
 
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -106,7 +134,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const hoursPassed = (now - state.lastUpdate) / (1000 * 60 * 60);
       const productionMultiplier = state.isRestructuringMode ? 1.5 : 1;
       
-      // Base production will be enhanced by resource regions in the UI
       const baseProduction = state.productionRate * hoursPassed * productionMultiplier;
       
       return {
@@ -142,6 +169,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, selectedTile: action.payload };
     
     case 'START_BATTLE':
+      const enemyHealth = action.payload.battleType === 'resource' 
+        ? action.payload.resourceRegion?.boss_health || 1000
+        : 5000; // Kale canı
+      
       return {
         ...state,
         battleState: {
@@ -149,7 +180,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           battleType: action.payload.battleType,
           enemy: action.payload.enemy,
           resourceRegion: action.payload.resourceRegion,
-          playerArmy: action.payload.playerArmy
+          playerArmy: action.payload.playerArmy,
+          battleUnits: [],
+          playerMana: 10,
+          maxMana: 10,
+          enemyHealth: enemyHealth,
+          maxEnemyHealth: enemyHealth
         }
       };
     
@@ -158,7 +194,48 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         battleState: {
           inBattle: false,
-          playerArmy: []
+          playerArmy: [],
+          battleUnits: [],
+          playerMana: 10,
+          maxMana: 10,
+          enemyHealth: 0,
+          maxEnemyHealth: 0
+        }
+      };
+    
+    case 'DEPLOY_UNIT':
+      return {
+        ...state,
+        battleState: {
+          ...state.battleState,
+          playerMana: Math.max(0, state.battleState.playerMana - 1)
+        }
+      };
+    
+    case 'UPDATE_BATTLE_UNITS':
+      return {
+        ...state,
+        battleState: {
+          ...state.battleState,
+          battleUnits: action.payload
+        }
+      };
+    
+    case 'UPDATE_MANA':
+      return {
+        ...state,
+        battleState: {
+          ...state.battleState,
+          playerMana: Math.min(state.battleState.maxMana, action.payload)
+        }
+      };
+    
+    case 'UPDATE_ENEMY_HEALTH':
+      return {
+        ...state,
+        battleState: {
+          ...state.battleState,
+          enemyHealth: Math.max(0, action.payload)
         }
       };
     
