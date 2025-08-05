@@ -94,6 +94,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const now = Date.now();
       const hoursPassed = (now - state.lastUpdate) / (1000 * 60 * 60);
       const productionMultiplier = state.isRestructuringMode ? 1.5 : 1;
+      
+      // Base production will be enhanced by resource regions in the UI
       const baseProduction = state.productionRate * hoursPassed * productionMultiplier;
       
       return {

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -6,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Shield, ShieldOff } from 'lucide-react';
+import { ResourceBattle } from './ResourceBattle';
 
 interface HexPosition {
   q: number;
@@ -21,6 +21,19 @@ interface UserPosition {
   s: number;
   username?: string;
   has_shield?: boolean;
+}
+
+interface ResourceRegion {
+  id: string;
+  q: number;
+  r: number;
+  s: number;
+  resource_type: string;
+  owner_id?: string;
+  boss_health: number;
+  max_boss_health: number;
+  production_bonus: number;
+  captured_at?: string;
 }
 
 // Genişletilmiş harita yapısı - 100 bölümden oluşan dünya haritası
@@ -53,7 +66,7 @@ const generateWorldMap = () => {
   return tiles;
 };
 
-const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, isOwnCastle, isEnemyCastle, hasShield }: {
+const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, isOwnCastle, isEnemyCastle, hasShield, resourceRegion }: {
   q: number;
   r: number;
   s: number;
@@ -65,7 +78,9 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   isOwnCastle?: boolean;
   isEnemyCastle?: boolean;
   hasShield?: boolean;
+  resourceRegion?: ResourceRegion;
 }) => {
+  const { user } = useAuth();
   const size = 25;
   const width = size * 2;
   const height = size * Math.sqrt(3);
@@ -74,7 +89,12 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   const y = size * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r);
   
   const getColor = () => {
-    if (hasShield) return 'fill-cyan-400'; // Kalkanlı kaleler
+    if (resourceRegion) {
+      if (resourceRegion.owner_id === user?.id) return 'fill-green-400'; // Own resource region
+      if (resourceRegion.owner_id) return 'fill-orange-400'; // Enemy resource region
+      return 'fill-yellow-300'; // Unclaimed resource region
+    }
+    if (hasShield) return 'fill-cyan-400';
     if (isOwnCastle) return 'fill-blue-600';
     if (isEnemyCastle) return 'fill-red-600';
     if (hasPlayer) return 'fill-purple-500';
@@ -89,6 +109,16 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   };
 
   const getIcon = () => {
+    if (resourceRegion) {
+      const resourceIcons = {
+        wood: '🪵',
+        gold: '🪙',
+        iron: '⚒️',
+        wheat: '🌾',
+        stone: '🪨'
+      };
+      return resourceIcons[resourceRegion.resource_type as keyof typeof resourceIcons];
+    }
     if (hasShield) return '🛡️';
     if (isOwnCastle) return '🏰';
     if (isEnemyCastle) return '⚔️';
@@ -103,13 +133,23 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
     }
   };
 
+  const getStrokeColor = () => {
+    if (resourceRegion) {
+      if (resourceRegion.owner_id === user?.id) return 'stroke-green-600';
+      if (resourceRegion.owner_id) return 'stroke-orange-600';
+      return 'stroke-yellow-600';
+    }
+    if (isSelected) return 'stroke-yellow-400';
+    if (isEnemyCastle && !hasShield) return 'stroke-gray-400 hover:stroke-red-400';
+    if (hasShield) return 'stroke-cyan-500';
+    return 'stroke-gray-400';
+  };
+
   return (
     <g transform={`translate(${x + 400}, ${y + 400})`}>
       <polygon
         points="-22,0 -11,-19 11,-19 22,0 11,19 -11,19"
-        className={`${getColor()} stroke-2 cursor-pointer transition-all hover:opacity-80 ${
-          isSelected ? 'stroke-yellow-400' : 'stroke-gray-400'
-        } ${isEnemyCastle && !hasShield ? 'hover:stroke-red-400' : ''} ${hasShield ? 'stroke-cyan-500' : ''}`}
+        className={`${getColor()} stroke-2 cursor-pointer transition-all hover:opacity-80 ${getStrokeColor()}`}
         onClick={onClick}
       />
       <text 
@@ -130,6 +170,16 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
           {playerName.slice(0, 8)}
         </text>
       )}
+      {resourceRegion && (
+        <text 
+          x="0" 
+          y="-12" 
+          textAnchor="middle" 
+          className="text-[8px] fill-current text-foreground pointer-events-none font-bold"
+        >
+          {resourceRegion.owner_id === user?.id ? '✅' : resourceRegion.owner_id ? '👑' : '💀'}
+        </text>
+      )}
     </g>
   );
 };
@@ -139,28 +189,25 @@ export const HexGrid = () => {
   const { user } = useAuth();
   const [tiles, setTiles] = useState<Array<{q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}>>([]);
   const [userPositions, setUserPositions] = useState<UserPosition[]>([]);
+  const [resourceRegions, setResourceRegions] = useState<ResourceRegion[]>([]);
   const [userHasPosition, setUserHasPosition] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [userHasShield, setUserHasShield] = useState(false);
-
-  useEffect(() => {
-    // Dünya haritası oluştur
-    const worldTiles = generateWorldMap();
-    setTiles(worldTiles);
-  }, []);
+  const [selectedResourceRegion, setSelectedResourceRegion] = useState<ResourceRegion | null>(null);
+  const [isBattleOpen, setIsBattleOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
       initializeUserPositions();
+      fetchResourceRegions();
       
       // Realtime güncellemeler için subscription oluştur
-      const subscription = supabase
+      const positionSubscription = supabase
         .channel('user_positions_changes')
         .on('postgres_changes', 
           { event: '*', schema: 'public', table: 'user_positions' }, 
           (payload) => {
             console.log('Position change detected:', payload);
-            // Hemen pozisyonları yeniden yükle
             fetchUserPositions();
             if (payload.eventType === 'UPDATE' && payload.new?.user_id === user.id) {
               setIsMoving(false);
@@ -170,11 +217,39 @@ export const HexGrid = () => {
         )
         .subscribe();
 
+      const resourceSubscription = supabase
+        .channel('resource_regions_changes')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'resource_regions' }, 
+          () => {
+            fetchResourceRegions();
+          }
+        )
+        .subscribe();
+
       return () => {
-        supabase.removeChannel(subscription);
+        supabase.removeChannel(positionSubscription);
+        supabase.removeChannel(resourceSubscription);
       };
     }
   }, [user]);
+
+  const fetchResourceRegions = async () => {
+    try {
+      const { data: regions, error } = await supabase
+        .from('resource_regions')
+        .select('*');
+
+      if (error) {
+        console.error('Resource regions fetch error:', error);
+        return;
+      }
+
+      setResourceRegions(regions || []);
+    } catch (err) {
+      console.error('Unexpected error in fetchResourceRegions:', err);
+    }
+  };
 
   const initializeUserPositions = async () => {
     await fetchUserPositions();
@@ -274,6 +349,14 @@ export const HexGrid = () => {
   const handleTileClick = async (tile: {q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}) => {
     if (isMoving) {
       toast.info('Kale taşınıyor, lütfen bekleyin...');
+      return;
+    }
+
+    // Check if there's a resource region here
+    const resourceRegion = getResourceRegionOnTile(tile.q, tile.r);
+    if (resourceRegion) {
+      setSelectedResourceRegion(resourceRegion);
+      setIsBattleOpen(true);
       return;
     }
 
@@ -400,12 +483,17 @@ export const HexGrid = () => {
     return userPositions.find(pos => pos.q === q && pos.r === r);
   };
 
+  const getResourceRegionOnTile = (q: number, r: number) => {
+    return resourceRegions.find(region => region.q === q && region.r === r);
+  };
+
   const getUserPosition = () => {
     if (!user) return null;
     return userPositions.find(pos => pos.user_id === user.id);
   };
 
   const currentUserPosition = getUserPosition();
+  const ownedRegions = resourceRegions.filter(region => region.owner_id === user?.id);
 
   return (
     <div className="w-full h-full bg-gradient-to-br from-green-50 to-blue-50 overflow-hidden relative">
@@ -446,6 +534,26 @@ export const HexGrid = () => {
             </p>
           </div>
         )}
+        
+        {/* Resource Regions Info */}
+        {ownedRegions.length > 0 && (
+          <div className="p-3 bg-blue-100 border border-blue-300 rounded-lg">
+            <p className="text-sm text-blue-800">
+              🏭 Kaynak Bölgeleriniz ({ownedRegions.length}): +{ownedRegions.reduce((total, region) => total + region.production_bonus, 0)}/saat bonus üretim
+            </p>
+            <div className="flex gap-1 mt-1">
+              {ownedRegions.map(region => (
+                <span key={region.id} className="text-xs">
+                  {region.resource_type === 'wood' && '🪵'}
+                  {region.resource_type === 'gold' && '🪙'}
+                  {region.resource_type === 'iron' && '⚒️'}
+                  {region.resource_type === 'wheat' && '🌾'}
+                  {region.resource_type === 'stone' && '🪨'}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Tam Ekran Harita */}
@@ -454,6 +562,7 @@ export const HexGrid = () => {
           <svg width="800" height="800" viewBox="0 0 800 800" className="w-full h-auto">
             {tiles.map((tile, index) => {
               const playerOnTile = getPlayerOnTile(tile.q, tile.r);
+              const resourceRegion = getResourceRegionOnTile(tile.q, tile.r);
               const isOwnCastle = playerOnTile && playerOnTile.user_id === user?.id;
               const isEnemyCastle = playerOnTile && playerOnTile.user_id !== user?.id;
               const hasShield = playerOnTile?.has_shield || false;
@@ -472,6 +581,7 @@ export const HexGrid = () => {
                   isOwnCastle={isOwnCastle}
                   isEnemyCastle={isEnemyCastle}
                   hasShield={hasShield}
+                  resourceRegion={resourceRegion}
                 />
               );
             })}
@@ -479,34 +589,79 @@ export const HexGrid = () => {
         </div>
       </div>
       
-      {/* Alt Panel - Aktif Kaleler */}
+      {/* Alt Panel - Aktif Kaleler ve Kaynak Bölgeleri */}
       <div className="absolute bottom-4 left-4 right-4 z-10">
         <div className="bg-white/95 backdrop-blur-sm rounded-lg p-4 shadow-lg">
-          <h3 className="text-sm font-semibold mb-2">Dünya Sunucusu - Aktif Kaleler ({userPositions.length})</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs max-h-32 overflow-y-auto">
-            {userPositions.map(pos => (
-              <div key={pos.id} className="flex items-center gap-2">
-                <span className={pos.user_id === user?.id ? "text-blue-600" : pos.has_shield ? "text-cyan-600" : "text-red-600"}>
-                  {pos.user_id === user?.id ? '🏰' : pos.has_shield ? '🛡️' : '⚔️'}
-                </span>
-                <span className={pos.user_id === user?.id ? "font-bold text-blue-600" : pos.has_shield ? "text-cyan-600" : ""}>
-                  {pos.user_id === user?.id ? `${pos.username} (Sen)` : `${pos.username}${pos.has_shield ? ' (Kalkanlı)' : ''}`}
-                </span>
-                <span className="text-gray-500 text-[10px]">({pos.q},{pos.r})</span>
+          <h3 className="text-sm font-semibold mb-2">
+            Dünya Sunucusu - Aktif Kaleler ({userPositions.length}) • Kaynak Bölgeleri ({resourceRegions.length})
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Active Castles */}
+            <div>
+              <h4 className="text-xs font-medium text-gray-600 mb-2">Kaleler</h4>
+              <div className="grid grid-cols-2 gap-2 text-xs max-h-24 overflow-y-auto">
+                {userPositions.map(pos => (
+                  <div key={pos.id} className="flex items-center gap-2">
+                    <span className={pos.user_id === user?.id ? "text-blue-600" : pos.has_shield ? "text-cyan-600" : "text-red-600"}>
+                      {pos.user_id === user?.id ? '🏰' : pos.has_shield ? '🛡️' : '⚔️'}
+                    </span>
+                    <span className={pos.user_id === user?.id ? "font-bold text-blue-600" : pos.has_shield ? "text-cyan-600" : ""}>
+                      {pos.user_id === user?.id ? `${pos.username} (Sen)` : `${pos.username}${pos.has_shield ? ' (🛡️)' : ''}`}
+                    </span>
+                    <span className="text-gray-500 text-[10px]">({pos.q},{pos.r})</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+            
+            {/* Resource Regions */}
+            <div>
+              <h4 className="text-xs font-medium text-gray-600 mb-2">Kaynak Bölgeleri</h4>
+              <div className="grid grid-cols-2 gap-2 text-xs max-h-24 overflow-y-auto">
+                {resourceRegions.map(region => (
+                  <div key={region.id} className="flex items-center gap-2">
+                    <span>
+                      {region.resource_type === 'wood' && '🪵'}
+                      {region.resource_type === 'gold' && '🪙'}
+                      {region.resource_type === 'iron' && '⚒️'}
+                      {region.resource_type === 'wheat' && '🌾'}
+                      {region.resource_type === 'stone' && '🪨'}
+                    </span>
+                    <span className={region.owner_id === user?.id ? "text-green-600 font-medium" : region.owner_id ? "text-orange-600" : ""}>
+                      {region.resource_type}
+                    </span>
+                    <span className="text-gray-500 text-[10px]">({region.q},{region.r})</span>
+                    <span className="text-[10px]">
+                      {region.owner_id === user?.id ? '✅' : region.owner_id ? '👑' : `💀${Math.round(region.boss_health/region.max_boss_health*100)}%`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          {userPositions.length === 0 && (
-            <p className="text-xs text-gray-500">Kaleler yükleniyor...</p>
-          )}
           
           <div className="mt-3 pt-2 border-t border-gray-200">
             <p className="text-xs text-gray-600">
-              🌍 <strong>Dünya Sunucusu:</strong> Kalkanlı kalelere (🛡️) saldırı yapılamaz. Kalkan butonunu kullanarak korunabilirsiniz.
+              🌍 <strong>Kaynak Bölgeleri:</strong> Sarı bölgelere tıklayarak boss savaşı başlatın. Kazandığınızda +500/saat üretim bonusu kazanırsınız!
             </p>
           </div>
         </div>
       </div>
+      
+      {/* Resource Battle Modal */}
+      <ResourceBattle 
+        region={selectedResourceRegion}
+        isOpen={isBattleOpen}
+        onClose={() => {
+          setIsBattleOpen(false);
+          setSelectedResourceRegion(null);
+        }}
+        onBattleComplete={() => {
+          fetchResourceRegions();
+          // Could also update user resources here based on owned regions
+        }}
+      />
     </div>
   );
 };

@@ -350,6 +350,92 @@ export type Database = {
         }
         Relationships: []
       }
+      resource_battles: {
+        Row: {
+          army_count: number
+          attacker_id: string
+          battle_log: string[] | null
+          boss_health_remaining: number
+          created_at: string
+          damage_dealt: number
+          id: string
+          region_id: string
+          victory: boolean
+        }
+        Insert: {
+          army_count: number
+          attacker_id: string
+          battle_log?: string[] | null
+          boss_health_remaining: number
+          created_at?: string
+          damage_dealt: number
+          id?: string
+          region_id: string
+          victory?: boolean
+        }
+        Update: {
+          army_count?: number
+          attacker_id?: string
+          battle_log?: string[] | null
+          boss_health_remaining?: number
+          created_at?: string
+          damage_dealt?: number
+          id?: string
+          region_id?: string
+          victory?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_battles_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "resource_regions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_regions: {
+        Row: {
+          boss_health: number
+          captured_at: string | null
+          created_at: string
+          id: string
+          max_boss_health: number
+          owner_id: string | null
+          production_bonus: number
+          q: number
+          r: number
+          resource_type: string
+          s: number
+        }
+        Insert: {
+          boss_health?: number
+          captured_at?: string | null
+          created_at?: string
+          id?: string
+          max_boss_health?: number
+          owner_id?: string | null
+          production_bonus?: number
+          q: number
+          r: number
+          resource_type: string
+          s: number
+        }
+        Update: {
+          boss_health?: number
+          captured_at?: string | null
+          created_at?: string
+          id?: string
+          max_boss_health?: number
+          owner_id?: string | null
+          production_bonus?: number
+          q?: number
+          r?: number
+          resource_type?: string
+          s?: number
+        }
+        Relationships: []
+      }
       user_positions: {
         Row: {
           has_shield: boolean | null
