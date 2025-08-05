@@ -1,11 +1,9 @@
-
 import { useState, useEffect } from 'react';
-import { useGame } from '@/contexts/GameContext';
+import { useUserResources } from '@/hooks/useUserResources';
 import { useAuth } from '@/hooks/useAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Hammer, Clock, Star, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -91,8 +89,8 @@ interface CastleInteriorProps {
 }
 
 export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
-  const { state, dispatch } = useGame();
   const { user } = useAuth();
+  const { resources, canAfford, spendResources, updateResources } = useUserResources();
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [selectedBuildingType, setSelectedBuildingType] = useState<string>('');
@@ -144,7 +142,7 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
     return () => clearInterval(interval);
   }, []);
 
-  // Production effect
+  // Production effect - now updates real resources
   useEffect(() => {
     const interval = setInterval(() => {
       const activeBuildings = buildings.filter(b => !b.isBuilding && !b.upgradeStartTime);
@@ -158,13 +156,21 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
         });
         
         if (Object.keys(production).length > 0) {
-          dispatch({ type: 'UPDATE_RESOURCES', payload: production });
+          // Convert to full resource update
+          const resourceUpdate = {
+            wood: resources.wood + (production.wood || 0),
+            gold: resources.gold + (production.gold || 0),
+            iron: resources.iron + (production.iron || 0),
+            wheat: resources.wheat + (production.wheat || 0),
+            stone: resources.stone + (production.stone || 0)
+          };
+          updateResources(resourceUpdate);
         }
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [buildings, dispatch]);
+  }, [buildings, resources, updateResources]);
 
   const getBuildingOnSlot = (slotId: number) => {
     const slot = buildSlots.find(s => s.id === slotId);
@@ -172,17 +178,12 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
     return buildings.find(b => b.x === slot.x && b.y === slot.y);
   };
 
-  const canAffordBuilding = (type: string) => {
-    const cost = buildingTypes[type].baseCost;
-    return Object.values(state.resources).every(resource => resource >= cost);
-  };
-
   const canAffordUpgrade = (building: Building) => {
     const upgradeCost = buildingTypes[building.type].baseCost * Math.pow(2, building.level);
-    return Object.values(state.resources).every(resource => resource >= upgradeCost);
+    return canAfford(upgradeCost);
   };
 
-  const handleBuildBuilding = () => {
+  const handleBuildBuilding = async () => {
     if (!selectedSlot || !selectedBuildingType) return;
     
     const slot = buildSlots.find(s => s.id === selectedSlot);
@@ -191,17 +192,8 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
     const buildingType = buildingTypes[selectedBuildingType];
     const cost = buildingType.baseCost;
 
-    if (!canAffordBuilding(selectedBuildingType)) {
-      toast.error('Yeterli kaynağınız yok!');
-      return;
-    }
-
-    // Deduct resources
-    const resourceCost: any = {};
-    Object.keys(state.resources).forEach(resource => {
-      resourceCost[resource] = -cost;
-    });
-    dispatch({ type: 'UPDATE_RESOURCES', payload: resourceCost });
+    const success = await spendResources(cost);
+    if (!success) return;
 
     // Add building
     const newBuilding: Building = {
@@ -221,22 +213,12 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
     toast.success(`${buildingType.name} inşaatı başladı! 1 dakika sürecek.`);
   };
 
-  const handleUpgradeBuilding = (building: Building) => {
+  const handleUpgradeBuilding = async (building: Building) => {
     if (building.upgradeStartTime) return;
 
     const upgradeCost = buildingTypes[building.type].baseCost * Math.pow(2, building.level);
-
-    if (!canAffordUpgrade(building)) {
-      toast.error('Yeterli kaynağınız yok!');
-      return;
-    }
-
-    // Deduct resources
-    const resourceCost: any = {};
-    Object.keys(state.resources).forEach(resource => {
-      resourceCost[resource] = -upgradeCost;
-    });
-    dispatch({ type: 'UPDATE_RESOURCES', payload: resourceCost });
+    const success = await spendResources(upgradeCost);
+    if (!success) return;
 
     // Start upgrade
     setBuildings(prev => prev.map(b => 
@@ -376,7 +358,7 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
                     </div>
                     <Button
                       onClick={handleBuildBuilding}
-                      disabled={!canAffordBuilding(selectedBuildingType)}
+                      disabled={!canAfford(buildingTypes[selectedBuildingType].baseCost)}
                     >
                       <Hammer className="w-4 h-4 mr-2" />
                       İnşa Et

@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useReducer, ReactNode } from 'react';
 
 export interface Resources {
@@ -82,11 +83,11 @@ export interface GameState {
 
 const initialState: GameState = {
   resources: {
-    wood: 5000,
-    gold: 5000,
-    iron: 5000,
-    wheat: 5000,
-    stone: 5000
+    wood: 0,
+    gold: 0,
+    iron: 0,
+    wheat: 0,
+    stone: 0
   },
   productionRate: 1500,
   isRestructuringMode: false,
@@ -107,6 +108,7 @@ const initialState: GameState = {
 };
 
 type GameAction = 
+  | { type: 'SET_RESOURCES'; payload: Resources }
   | { type: 'UPDATE_RESOURCES'; payload: Partial<Resources> }
   | { type: 'PRODUCE_RESOURCES' }
   | { type: 'CREATE_ARMY_UNIT'; payload: ArmyUnit }
@@ -123,6 +125,12 @@ type GameAction =
 
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
+    case 'SET_RESOURCES':
+      return {
+        ...state,
+        resources: action.payload
+      };
+
     case 'UPDATE_RESOURCES':
       return {
         ...state,

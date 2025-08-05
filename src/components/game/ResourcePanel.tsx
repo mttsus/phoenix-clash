@@ -1,11 +1,21 @@
 
 import { useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
+import { useUserResources } from '@/hooks/useUserResources';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Loader2 } from 'lucide-react';
 
 export const ResourcePanel = () => {
   const { state, dispatch } = useGame();
+  const { resources, loading, refreshResources } = useUserResources();
+
+  // Sync resources with game context when they change
+  useEffect(() => {
+    if (!loading) {
+      dispatch({ type: 'SET_RESOURCES', payload: resources });
+    }
+  }, [resources, loading, dispatch]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -27,10 +37,19 @@ export const ResourcePanel = () => {
     return amount.toLocaleString();
   };
 
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center px-6 bg-card">
+        <Loader2 className="w-6 h-6 animate-spin" />
+        <span className="ml-2">Kaynaklar yükleniyor...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex items-center justify-between px-6 bg-card">
       <div className="flex items-center space-x-6">
-        {Object.entries(state.resources).map(([key, value]) => (
+        {Object.entries(resources).map(([key, value]) => (
           <div key={key} className="flex items-center space-x-2">
             <span className="text-2xl">{resourceIcons[key as keyof typeof resourceIcons]}</span>
             <div className="flex flex-col">
@@ -57,9 +76,9 @@ export const ResourcePanel = () => {
         
         <Button 
           variant="outline" 
-          onClick={() => dispatch({ type: 'PRODUCE_RESOURCES' })}
+          onClick={() => refreshResources()}
         >
-          Kaynak Topla
+          Yenile
         </Button>
       </div>
     </div>
