@@ -499,6 +499,42 @@ export type Database = {
         }
         Relationships: []
       }
+      user_resources: {
+        Row: {
+          created_at: string
+          gold: number
+          id: string
+          iron: number
+          stone: number
+          updated_at: string
+          user_id: string
+          wheat: number
+          wood: number
+        }
+        Insert: {
+          created_at?: string
+          gold?: number
+          id?: string
+          iron?: number
+          stone?: number
+          updated_at?: string
+          user_id: string
+          wheat?: number
+          wood?: number
+        }
+        Update: {
+          created_at?: string
+          gold?: number
+          id?: string
+          iron?: number
+          stone?: number
+          updated_at?: string
+          user_id?: string
+          wheat?: number
+          wood?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
