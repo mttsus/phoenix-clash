@@ -40,7 +40,7 @@ export const useTutorial = () => {
         .from('user_tutorial_progress')
         .select('*')
         .eq('user_id', user.id)
-        .maybeSingle(); // single() yerine maybeSingle() kullanıyoruz
+        .maybeSingle();
 
       if (error) {
         console.error('Tutorial progress yüklenemedi:', error);
@@ -48,7 +48,6 @@ export const useTutorial = () => {
       }
 
       if (!data) {
-        // Eğer tutorial verisi yoksa, yeni kullanıcı için oluştur
         console.log('Tutorial verisi yok, yeni tutorial başlatılıyor...');
         const { data: newTutorial, error: insertError } = await supabase
           .from('user_tutorial_progress')
@@ -67,7 +66,6 @@ export const useTutorial = () => {
           return;
         }
 
-        // Yeni tutorial verisini set et
         const tutorialData: TutorialProgress = {
           current_step: newTutorial.current_step,
           tutorial_completed: false,
@@ -79,7 +77,6 @@ export const useTutorial = () => {
         return;
       }
 
-      // Mevcut tutorial verisini convert et
       const tutorialData: TutorialProgress = {
         current_step: data.current_step,
         tutorial_completed: data.tutorial_completed || false,
@@ -111,13 +108,11 @@ export const useTutorial = () => {
         return false;
       }
 
-      // Give reward for completing step (completed step hariç)
       if (nextStep !== 'completed') {
         await supabase.rpc('complete_tutorial_step_reward');
         toast.success('🎉 Tutorial adımı tamamlandı! 100,000 kaynak kazandınız!');
       }
 
-      // Reload progress
       await loadTutorialProgress();
       return true;
     } catch (error) {
@@ -126,11 +121,40 @@ export const useTutorial = () => {
     }
   };
 
+  const skipTutorial = async () => {
+    if (!user) return false;
+    
+    try {
+      const { error } = await supabase
+        .from('user_tutorial_progress')
+        .update({
+          tutorial_completed: true,
+          current_step: 'completed',
+          completed_steps: ['move_castle', 'enter_castle', 'build_structure', 'wait_construction', 'upgrade_building', 'train_army', 'battle_enemy']
+        })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Tutorial atlanamadı:', error);
+        return false;
+      }
+
+      // Final reward vermek için
+      await supabase.rpc('complete_tutorial_step_reward');
+      toast.success('🎉 Tutorial atlandı! Hoşgeldin bonusu aldınız!');
+      
+      await loadTutorialProgress();
+      return true;
+    } catch (error) {
+      console.error('Tutorial atlanamadı:', error);
+      return false;
+    }
+  };
+
   const completeTutorial = async () => {
     if (!user) return false;
     
     try {
-      // Tutorial'ı completed olarak işaretle
       const { error } = await supabase.rpc('update_tutorial_step', {
         new_step: 'completed',
         step_data_update: {}
@@ -143,10 +167,8 @@ export const useTutorial = () => {
 
       toast.success('🎉 Tutorial tamamlandı! Oyunun tüm özelliklerine erişiminiz açıldı!');
       
-      // Progress'i reload et
       await loadTutorialProgress();
       
-      // Sayfayı yenile (normal oyun moduna geç)
       window.location.reload();
       
       return true;
@@ -156,11 +178,21 @@ export const useTutorial = () => {
     }
   };
 
+  // Auto-advance tutorial based on game state detection
+  const checkAndAdvanceTutorial = async () => {
+    if (!tutorialProgress || tutorialProgress.tutorial_completed) return;
+
+    // Bu fonksiyon ile otomatik adım geçişi yapılabilir
+    // Şu anda manual olarak bırakıyorum ama ileride oyun eventleri ile tetiklenebilir
+  };
+
   return {
     tutorialProgress,
     loading,
     updateTutorialStep,
+    skipTutorial,
     completeTutorial,
+    checkAndAdvanceTutorial,
     isTutorialActive: tutorialProgress && !tutorialProgress.tutorial_completed,
     currentStep: tutorialProgress?.current_step || 'move_castle'
   };

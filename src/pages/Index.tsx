@@ -59,7 +59,7 @@ const Index = () => {
                     </div>
                     <div>
                       <h2 className="font-semibold text-blue-800">Tutorial Modu</h2>
-                      <p className="text-xs text-blue-600">Oyunu öğrenmek için adımları takip edin</p>
+                      <p className="text-xs text-blue-600">İstediğiniz zaman atlayabilirsiniz</p>
                     </div>
                   </div>
                 </div>
@@ -84,19 +84,16 @@ const Index = () => {
             </div>
           </div>
           
-          {/* Ana Oyun Alanı - Tutorial modunda da aynı */}
+          {/* Ana Oyun Alanı - Tutorial modunda da tam erişim */}
           <div className="flex-1 flex">
-            {/* Sol Panel - Tutorial modunda sınırlı erişim */}
-            <div className={`w-80 border-r border-border bg-card ${isTutorialActive ? 'opacity-50' : ''}`}>
+            {/* Sol Panel - Tutorial modunda da tam erişim */}
+            <div className="w-80 border-r border-border bg-card">
               <ArmyPanel />
             </div>
             
-            {/* Tam Ekran Hex Grid Harita - Her zaman görünür */}
+            {/* Tam Ekran Hex Grid Harita */}
             <div className="flex-1 relative">
               <HexGrid />
-              {isTutorialActive && (
-                <div className="absolute inset-0 bg-black bg-opacity-20 pointer-events-none" />
-              )}
             </div>
           </div>
         </div>
@@ -104,7 +101,7 @@ const Index = () => {
         {/* Savaş Arenası Modal */}
         <BattleArena />
         
-        {/* Tutorial Overlay - Aktifse görünür */}
+        {/* Tutorial Overlay - Sadece rehberlik eder, kısıtlama yapmaz */}
         <TutorialOverlay />
       </div>
     </GameProvider>
