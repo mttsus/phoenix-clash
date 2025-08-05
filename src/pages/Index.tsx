@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { HexGrid } from '@/components/game/HexGrid';
 import { ResourcePanel } from '@/components/game/ResourcePanel';
 import { ArmyPanel } from '@/components/game/ArmyPanel';
-import { BattleSystem } from '@/components/game/BattleSystem';
 import { BattleArena } from '@/components/game/BattleArena';
 import { GameProvider } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -58,14 +57,9 @@ const Index = () => {
               <ArmyPanel />
             </div>
             
-            {/* Merkez - Hex Grid Harita */}
+            {/* Tam Ekran Hex Grid Harita */}
             <div className="flex-1 relative">
               <HexGrid />
-            </div>
-            
-            {/* Sağ Panel - Savaş Sistemi */}
-            <div className="w-80 border-l border-border bg-card">
-              <BattleSystem />
             </div>
           </div>
         </div>

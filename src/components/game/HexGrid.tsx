@@ -1,9 +1,10 @@
-
 import { useEffect, useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Shield, ShieldOff } from 'lucide-react';
 
 interface HexPosition {
   q: number;
@@ -18,6 +19,7 @@ interface UserPosition {
   r: number;
   s: number;
   username?: string;
+  has_shield?: boolean;
 }
 
 // Genişletilmiş harita yapısı - 100 bölümden oluşan dünya haritası
@@ -50,7 +52,7 @@ const generateWorldMap = () => {
   return tiles;
 };
 
-const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, isOwnCastle, isEnemyCastle }: {
+const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, isOwnCastle, isEnemyCastle, hasShield }: {
   q: number;
   r: number;
   s: number;
@@ -61,8 +63,9 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   playerName?: string;
   isOwnCastle?: boolean;
   isEnemyCastle?: boolean;
+  hasShield?: boolean;
 }) => {
-  const size = 25; // Daha büyük harita için tile boyutu küçültüldü
+  const size = 25;
   const width = size * 2;
   const height = size * Math.sqrt(3);
   
@@ -70,9 +73,10 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   const y = size * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r);
   
   const getColor = () => {
-    if (isOwnCastle) return 'fill-blue-600'; // Kendi kalesi
-    if (isEnemyCastle) return 'fill-red-600'; // Düşman kalesi
-    if (hasPlayer) return 'fill-purple-500'; // Diğer oyuncular
+    if (hasShield) return 'fill-cyan-400'; // Kalkanlı kaleler
+    if (isOwnCastle) return 'fill-blue-600';
+    if (isEnemyCastle) return 'fill-red-600';
+    if (hasPlayer) return 'fill-purple-500';
     switch (type) {
       case 'castle': return 'fill-yellow-500';
       case 'forest': return 'fill-green-500';
@@ -84,6 +88,7 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   };
 
   const getIcon = () => {
+    if (hasShield) return '🛡️';
     if (isOwnCastle) return '🏰';
     if (isEnemyCastle) return '⚔️';
     if (hasPlayer) return '🏰';
@@ -103,7 +108,7 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
         points="-22,0 -11,-19 11,-19 22,0 11,19 -11,19"
         className={`${getColor()} stroke-2 cursor-pointer transition-all hover:opacity-80 ${
           isSelected ? 'stroke-yellow-400' : 'stroke-gray-400'
-        } ${isEnemyCastle ? 'hover:stroke-red-400' : ''}`}
+        } ${isEnemyCastle && !hasShield ? 'hover:stroke-red-400' : ''} ${hasShield ? 'stroke-cyan-500' : ''}`}
         onClick={onClick}
       />
       <text 
@@ -135,6 +140,7 @@ export const HexGrid = () => {
   const [userPositions, setUserPositions] = useState<UserPosition[]>([]);
   const [userHasPosition, setUserHasPosition] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
+  const [userHasShield, setUserHasShield] = useState(false);
 
   useEffect(() => {
     // Dünya haritası oluştur
@@ -183,19 +189,15 @@ export const HexGrid = () => {
     console.log('Fetching user positions...');
     
     try {
-      // Önce basit sorgu ile tüm pozisyonları al
       const { data: positions, error } = await supabase
         .from('user_positions')
-        .select('id, user_id, q, r, s');
+        .select('id, user_id, q, r, s, has_shield');
 
       if (error) {
         console.error('Kullanıcı pozisyonları yüklenemedi:', error);
         return;
       }
 
-      console.log('Positions fetched:', positions);
-
-      // Her pozisyon için username bilgisini al
       const positionsWithUsernames = await Promise.all(
         (positions || []).map(async (pos) => {
           const { data: profile } = await supabase
@@ -211,8 +213,11 @@ export const HexGrid = () => {
         })
       );
 
-      console.log('Positions with usernames:', positionsWithUsernames);
       setUserPositions(positionsWithUsernames);
+
+      // Kullanıcının kalkan durumunu kontrol et
+      const currentUser = positionsWithUsernames.find(pos => pos.user_id === user?.id);
+      setUserHasShield(currentUser?.has_shield || false);
 
     } catch (err) {
       console.error('Unexpected error in fetchUserPositions:', err);
@@ -267,8 +272,13 @@ export const HexGrid = () => {
 
     const playerOnTile = getPlayerOnTile(tile.q, tile.r);
     
-    // Düşman kalesi kontrolü
+    // Düşman kalesi kontrolü - Kalkanlı kalelere saldırı yapılamaz
     if (playerOnTile && playerOnTile.user_id !== user?.id) {
+      if (playerOnTile.has_shield) {
+        toast.info(`${playerOnTile.username} kalesi kalkanlı! Saldırı yapılamaz.`);
+        return;
+      }
+      
       const shouldAttack = confirm(`${playerOnTile.username} kalesine saldırmak istiyor musunuz?`);
       if (shouldAttack) {
         startBattle(playerOnTile);
@@ -289,6 +299,45 @@ export const HexGrid = () => {
       type: 'SELECT_TILE', 
       payload: { ...tile, owner: 'player' } 
     });
+  };
+
+  const toggleShield = async () => {
+    if (!user || !userHasPosition) {
+      toast.error('Kalkan sistemini kullanmak için kalenizin haritada olması gerekir.');
+      return;
+    }
+
+    try {
+      const newShieldState = !userHasShield;
+      
+      const { error } = await supabase
+        .from('user_positions')
+        .update({ has_shield: newShieldState })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Kalkan durumu güncellenemedi:', error);
+        toast.error('Kalkan durumu güncellenemedi: ' + error.message);
+        return;
+      }
+
+      setUserHasShield(newShieldState);
+      
+      if (newShieldState) {
+        toast.success('🛡️ Kalkan aktif edildi! Artık saldırıya uğramayacaksınız.');
+      } else {
+        toast.success('⚔️ Kalkan deaktif edildi! Artık saldırıya uğrayabilirsiniz.');
+      }
+
+      // Pozisyonları yeniden yükle
+      setTimeout(() => {
+        fetchUserPositions();
+      }, 500);
+
+    } catch (err) {
+      console.error('Beklenmeyen hata:', err);
+      toast.error('Beklenmeyen bir hata oluştu');
+    }
   };
 
   const moveCastle = async (tile: {q: number, r: number, s: number}) => {
@@ -352,32 +401,55 @@ export const HexGrid = () => {
   const currentUserPosition = getUserPosition();
 
   return (
-    <div className="w-full h-full bg-gradient-to-br from-green-50 to-blue-50 overflow-hidden">
-      <div className="p-4">
+    <div className="w-full h-full bg-gradient-to-br from-green-50 to-blue-50 overflow-hidden relative">
+      {/* Kalkan Kontrolü - Sağ üst köşe */}
+      {userHasPosition && (
+        <div className="absolute top-4 right-4 z-10">
+          <Button
+            onClick={toggleShield}
+            variant={userHasShield ? "default" : "outline"}
+            size="sm"
+            className={`flex items-center gap-2 ${
+              userHasShield 
+                ? 'bg-cyan-600 hover:bg-cyan-700 text-white' 
+                : 'border-cyan-600 text-cyan-600 hover:bg-cyan-50'
+            }`}
+          >
+            {userHasShield ? <Shield className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+            {userHasShield ? 'Kalkan Aktif' : 'Kalkan İnaktif'}
+          </Button>
+        </div>
+      )}
+
+      {/* Durum Bilgileri */}
+      <div className="absolute top-4 left-4 z-10 space-y-2">
         {!userHasPosition && (
-          <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
+          <div className="p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
             <p className="text-sm text-yellow-800">
               ⏳ Kaleniz otomatik olarak yerleştiriliyor... {isMoving && 'Taşınıyor...'}
             </p>
           </div>
         )}
         {userHasPosition && currentUserPosition && (
-          <div className="mb-4 p-3 bg-green-100 border border-green-300 rounded-lg">
+          <div className="p-3 bg-green-100 border border-green-300 rounded-lg">
             <p className="text-sm text-green-800">
-              ✅ Kaleniz ({currentUserPosition.q}, {currentUserPosition.r}) konumunda! 
-              {isMoving ? ' 🔄 Taşınıyor...' : ' Düşman kalelerine (⚔️) tıklayarak savaş başlatabilir, boş alanlara tıklayarak kalenizi taşıyabilirsiniz.'}
+              ✅ Kaleniz ({currentUserPosition.q}, {currentUserPosition.r}) konumunda!
+              {userHasShield && ' 🛡️ Kalkan aktif!'}
+              {isMoving ? ' 🔄 Taşınıyor...' : !userHasShield ? ' Düşman kalelerine (⚔️) tıklayarak savaş başlatabilir, boş alanlara tıklayarak kalenizi taşıyabilirsiniz.' : ' Kalkanlısınız, saldırıya uğramayacaksınız.'}
             </p>
           </div>
         )}
       </div>
       
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="overflow-auto max-h-[600px] max-w-[800px]">
-          <svg width="800" height="800" viewBox="0 0 800 800">
+      {/* Tam Ekran Harita */}
+      <div className="w-full h-full flex items-center justify-center pt-20 pb-4">
+        <div className="overflow-auto max-h-full max-w-full">
+          <svg width="800" height="800" viewBox="0 0 800 800" className="w-full h-auto">
             {tiles.map((tile, index) => {
               const playerOnTile = getPlayerOnTile(tile.q, tile.r);
               const isOwnCastle = playerOnTile && playerOnTile.user_id === user?.id;
               const isEnemyCastle = playerOnTile && playerOnTile.user_id !== user?.id;
+              const hasShield = playerOnTile?.has_shield || false;
               
               return (
                 <HexTile
@@ -392,6 +464,7 @@ export const HexGrid = () => {
                   playerName={playerOnTile?.username}
                   isOwnCastle={isOwnCastle}
                   isEnemyCastle={isEnemyCastle}
+                  hasShield={hasShield}
                 />
               );
             })}
@@ -399,17 +472,18 @@ export const HexGrid = () => {
         </div>
       </div>
       
-      <div className="p-4">
-        <div className="bg-white/90 rounded-lg p-4 shadow-sm">
+      {/* Alt Panel - Aktif Kaleler */}
+      <div className="absolute bottom-4 left-4 right-4 z-10">
+        <div className="bg-white/95 backdrop-blur-sm rounded-lg p-4 shadow-lg">
           <h3 className="text-sm font-semibold mb-2">Dünya Sunucusu - Aktif Kaleler ({userPositions.length})</h3>
-          <div className="grid grid-cols-2 gap-2 text-xs max-h-32 overflow-y-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs max-h-32 overflow-y-auto">
             {userPositions.map(pos => (
               <div key={pos.id} className="flex items-center gap-2">
-                <span className={pos.user_id === user?.id ? "text-blue-600" : "text-red-600"}>
-                  {pos.user_id === user?.id ? '🏰' : '⚔️'}
+                <span className={pos.user_id === user?.id ? "text-blue-600" : pos.has_shield ? "text-cyan-600" : "text-red-600"}>
+                  {pos.user_id === user?.id ? '🏰' : pos.has_shield ? '🛡️' : '⚔️'}
                 </span>
-                <span className={pos.user_id === user?.id ? "font-bold text-blue-600" : ""}>
-                  {pos.user_id === user?.id ? `${pos.username} (Sen)` : `${pos.username}`}
+                <span className={pos.user_id === user?.id ? "font-bold text-blue-600" : pos.has_shield ? "text-cyan-600" : ""}>
+                  {pos.user_id === user?.id ? `${pos.username} (Sen)` : `${pos.username}${pos.has_shield ? ' (Kalkanlı)' : ''}`}
                 </span>
                 <span className="text-gray-500 text-[10px]">({pos.q},{pos.r})</span>
               </div>
@@ -421,7 +495,7 @@ export const HexGrid = () => {
           
           <div className="mt-3 pt-2 border-t border-gray-200">
             <p className="text-xs text-gray-600">
-              🌍 <strong>Dünya Sunucusu:</strong> Tüm oyuncular aynı haritada! Boş alanlara tıklayarak kalenizi taşıyın.
+              🌍 <strong>Dünya Sunucusu:</strong> Kalkanlı kalelere (🛡️) saldırı yapılamaz. Kalkan butonunu kullanarak korunabilirsiniz.
             </p>
           </div>
         </div>
