@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useTutorial, TutorialStep } from '@/hooks/useTutorial';
-import { ChevronRight, Star, Target, Hammer, Swords, Crown, X, Minimize2, Skip, Play } from 'lucide-react';
+import { ChevronRight, Star, Target, Hammer, Swords, Crown, X, Minimize2, FastForward, Play } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface TutorialConfig {
@@ -163,7 +163,7 @@ export const TutorialOverlay = () => {
         <DialogContent className="max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Skip className="w-5 h-5 text-orange-500" />
+              <FastForward className="w-5 h-5 text-orange-500" />
               Tutorial'ı Atla?
             </DialogTitle>
           </DialogHeader>
@@ -298,7 +298,7 @@ export const TutorialOverlay = () => {
               size="sm"
               className="flex items-center gap-1 text-xs text-orange-600"
             >
-              <Skip className="w-3 h-3" />
+              <FastForward className="w-3 h-3" />
               Tutorial'ı Atla
             </Button>
           </div>
