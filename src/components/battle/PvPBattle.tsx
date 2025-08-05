@@ -16,6 +16,22 @@ export const PvPBattle = () => {
   const [maxEnemyHealth] = useState(5000);
   const [battleLog, setBattleLog] = useState<string[]>([]);
   const [isActive, setIsActive] = useState(false);
+  const [units, setUnits] = useState<Array<{
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    health: number;
+    maxHealth: number;
+    attacking: boolean;
+  }>>([]);
+  const [enemyCastle, setEnemyCastle] = useState<{
+    x: number;
+    y: number;
+    health: number;
+    maxHealth: number;
+    defending: boolean;
+  } | null>(null);
 
   const enemy = state.battleState.enemy;
   const playerArmy = state.battleState.playerArmy;
@@ -25,6 +41,27 @@ export const PvPBattle = () => {
       setEnemyHealth(maxEnemyHealth);
       setBattleLog([`${enemy.username} kalesine saldırı başlıyor!`]);
       setIsActive(true);
+      
+      // Initialize enemy castle
+      setEnemyCastle({
+        x: 650,
+        y: 150,
+        health: maxEnemyHealth,
+        maxHealth: maxEnemyHealth,
+        defending: false
+      });
+
+      // Initialize army units
+      const initialUnits = playerArmy.map((unit, index) => ({
+        id: unit.id,
+        type: unit.type,
+        x: 80 + (index * 45),
+        y: 160 + (Math.random() * 100),
+        health: unit.health,
+        maxHealth: unit.health,
+        attacking: false
+      }));
+      setUnits(initialUnits);
       
       // Start the battle simulation
       setTimeout(() => startBattleSimulation(), 1000);
@@ -41,16 +78,25 @@ export const PvPBattle = () => {
           return 0;
         }
 
-        // Calculate army damage per second
         const totalDamage = playerArmy.reduce((total, unit) => total + (unit.damage * unit.count), 0);
-        const damagePerSecond = Math.floor(totalDamage * 0.2); // 20% of total damage per second for PvP
+        const damagePerSecond = Math.floor(totalDamage * 0.2);
         
         const newHealth = Math.max(0, currentHealth - damagePerSecond);
         
         setBattleLog(prev => [
-          ...prev.slice(-10), // Keep only last 10 messages
+          ...prev.slice(-10),
           `Ordu ${damagePerSecond} hasar veriyor! ${enemy.username} kale canı: ${newHealth}/${maxEnemyHealth}`
         ]);
+
+        // Update castle health visually
+        setEnemyCastle(prev => prev ? { ...prev, health: newHealth, defending: true } : null);
+
+        // Make units attack animation
+        setUnits(prev => prev.map(unit => ({ ...unit, attacking: true })));
+        setTimeout(() => {
+          setUnits(prev => prev.map(unit => ({ ...unit, attacking: false })));
+          setEnemyCastle(prev => prev ? { ...prev, defending: false } : null);
+        }, 600);
 
         if (newHealth <= 0) {
           setBattleLog(prev => [...prev, `🎉 ${enemy.username} kalesi yenildi! Zafer kazandınız!`]);
@@ -61,15 +107,17 @@ export const PvPBattle = () => {
       });
     }, 1000);
 
-    // Enemy castle also defends (makes it more interesting)
     const defenseInterval = setInterval(() => {
       setBattleLog(prev => [
         ...prev.slice(-10),
         `${enemy.username} kalesi savunma yapıyor! Kuleler ateş ediyor...`
       ]);
+      setEnemyCastle(prev => prev ? { ...prev, defending: true } : null);
+      setTimeout(() => {
+        setEnemyCastle(prev => prev ? { ...prev, defending: false } : null);
+      }, 800);
     }, 3000);
 
-    // Cleanup on unmount
     return () => {
       clearInterval(interval);
       clearInterval(defenseInterval);
@@ -84,7 +132,6 @@ export const PvPBattle = () => {
     try {
       const damageDealt = maxEnemyHealth - enemyHealth;
 
-      // Save battle result to database
       const { error: battleError } = await supabase
         .from('pvp_battles')
         .insert({
@@ -98,11 +145,9 @@ export const PvPBattle = () => {
 
       if (battleError) {
         console.error('PvP battle log save error:', battleError);
-        // Don't throw error, just log it - battle should still complete
       }
 
       if (victory) {
-        // Victory rewards
         dispatch({
           type: 'UPDATE_RESOURCES',
           payload: {
@@ -119,7 +164,6 @@ export const PvPBattle = () => {
         toast.info(`${enemy.username} kalesine ${damageDealt} hasar verdiniz ama yenemediniz..`);
       }
 
-      // Update battle result in context
       dispatch({ type: 'BATTLE_RESULT', payload: { won: victory } });
 
     } catch (err) {
@@ -127,7 +171,6 @@ export const PvPBattle = () => {
       toast.error('Savaş tamamlanırken bir hata oluştu');
     }
 
-    // End battle and return to map
     setTimeout(() => {
       dispatch({ type: 'END_BATTLE' });
     }, 3000);
@@ -172,25 +215,137 @@ export const PvPBattle = () => {
         </CardContent>
       </Card>
 
-      {/* Army Status */}
-      <Card>
+      {/* Live PvP Arena */}
+      <Card className="flex-1">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sword className="w-5 h-5" />
+            Canlı Kale Kuşatması
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="relative w-full h-80 bg-gradient-to-b from-blue-200 to-green-300 border-2 border-gray-300 overflow-hidden">
+            {/* Army Units */}
+            {units.map((unit) => (
+              <div
+                key={unit.id}
+                className={`absolute transition-all duration-500 ${unit.attacking ? 'scale-125' : 'scale-100'}`}
+                style={{
+                  left: `${unit.x}px`,
+                  top: `${unit.y}px`,
+                  transform: unit.attacking ? 'translateX(20px)' : 'translateX(0px)'
+                }}
+              >
+                <div className="relative">
+                  {/* Unit Sprite */}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg border-2 ${
+                    unit.type === 'swordsman' ? 'bg-blue-700 border-blue-500' :
+                    unit.type === 'archer' ? 'bg-green-700 border-green-500' :
+                    unit.type === 'cavalry' ? 'bg-red-700 border-red-500' :
+                    'bg-purple-700 border-purple-500'
+                  }`}>
+                    {unit.type === 'swordsman' ? '⚔️' :
+                     unit.type === 'archer' ? '🏹' :
+                     unit.type === 'cavalry' ? '🐎' :
+                     '🔮'}
+                  </div>
+                  
+                  {/* Health Bar */}
+                  <div className="absolute -top-2 left-0 w-10 h-1.5 bg-gray-300 rounded">
+                    <div 
+                      className="h-full bg-green-500 rounded transition-all duration-300"
+                      style={{ width: `${(unit.health / unit.maxHealth) * 100}%` }}
+                    />
+                  </div>
+
+                  {/* Attack Effect */}
+                  {unit.attacking && (
+                    <div className="absolute -right-3 top-2 text-orange-500 font-bold animate-bounce text-lg">
+                      💥
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Enemy Castle */}
+            {enemyCastle && (
+              <div
+                className={`absolute transition-all duration-500 ${enemyCastle.defending ? 'animate-pulse scale-110' : 'scale-100'}`}
+                style={{
+                  left: `${enemyCastle.x}px`,
+                  top: `${enemyCastle.y}px`
+                }}
+              >
+                <div className="relative">
+                  {/* Castle Sprite */}
+                  <div className="w-20 h-24 bg-stone-600 rounded-t-lg flex flex-col items-center justify-center text-white font-bold shadow-xl border-4 border-stone-400">
+                    <div className="text-3xl mb-1">🏰</div>
+                    <div className="text-xs">{enemy.username}</div>
+                  </div>
+                  
+                  {/* Castle Health Bar */}
+                  <div className="absolute -top-4 left-0 w-20 h-3 bg-gray-300 rounded">
+                    <div 
+                      className="h-full bg-red-600 rounded transition-all duration-300"
+                      style={{ width: `${(enemyCastle.health / enemyCastle.maxHealth) * 100}%` }}
+                    />
+                  </div>
+
+                  {/* Defense Towers */}
+                  <div className="absolute -top-2 -left-3 w-6 h-8 bg-stone-500 rounded-t border-2 border-stone-300 flex items-end justify-center">
+                    <div className="text-xs">🏹</div>
+                  </div>
+                  <div className="absolute -top-2 -right-3 w-6 h-8 bg-stone-500 rounded-t border-2 border-stone-300 flex items-end justify-center">
+                    <div className="text-xs">🏹</div>
+                  </div>
+
+                  {/* Defense Effect */}
+                  {enemyCastle.defending && (
+                    <div className="absolute -left-6 top-8 text-red-500 font-bold animate-ping text-xl">
+                      🔥
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Battle Effects */}
+            <div className="absolute inset-0 pointer-events-none">
+              {isActive && (
+                <div className="absolute top-4 left-4 text-red-500 font-bold animate-pulse text-lg">
+                  ⚔️ KALE KUŞATMASI
+                </div>
+              )}
+            </div>
+
+            {/* Battlefield Elements */}
+            <div className="absolute bottom-0 left-0 w-full h-8 bg-green-600 opacity-30" />
+            <div className="absolute top-1/2 left-1/4 w-2 h-2 bg-brown-600 rounded-full" />
+            <div className="absolute top-1/3 left-1/3 w-1 h-1 bg-brown-600 rounded-full" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Army Status (Compressed) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Sword className="w-4 h-4" />
             Saldıran Ordunuz
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {playerArmy.map(unit => (
-              <div key={unit.id} className="flex justify-between text-sm">
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {playerArmy.slice(0, 4).map(unit => (
+              <div key={unit.id} className="flex justify-between">
                 <span>{unit.count}x {unit.type}</span>
-                <span>{unit.damage * unit.count} hasar</span>
+                <span>{unit.damage * unit.count} dmg</span>
               </div>
             ))}
-            <div className="border-t pt-2">
+            <div className="col-span-2 border-t pt-1">
               <div className="flex justify-between font-medium">
-                <span>Toplam Saldırı Gücü:</span>
+                <span>Toplam Güç:</span>
                 <span>{playerArmy.reduce((total, unit) => total + (unit.damage * unit.count), 0)}</span>
               </div>
             </div>
@@ -198,18 +353,18 @@ export const PvPBattle = () => {
         </CardContent>
       </Card>
 
-      {/* Battle Log */}
-      <Card className="flex-1">
+      {/* Battle Log (Compressed) */}
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5" />
-            Canlı Savaş Raporu
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Shield className="w-4 h-4" />
+            Savaş Raporu
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="max-h-64 overflow-y-auto space-y-1">
-            {battleLog.map((log, index) => (
-              <div key={index} className="text-sm font-mono p-2 bg-gray-50 rounded">
+          <div className="max-h-24 overflow-y-auto space-y-1">
+            {battleLog.slice(-3).map((log, index) => (
+              <div key={index} className="text-xs font-mono p-1 bg-gray-50 rounded">
                 {log}
               </div>
             ))}

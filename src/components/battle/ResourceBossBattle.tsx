@@ -16,6 +16,22 @@ export const ResourceBossBattle = () => {
   const [maxBossHealth, setMaxBossHealth] = useState(0);
   const [battleLog, setBattleLog] = useState<string[]>([]);
   const [isActive, setIsActive] = useState(false);
+  const [units, setUnits] = useState<Array<{
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    health: number;
+    maxHealth: number;
+    attacking: boolean;
+  }>>([]);
+  const [boss, setBoss] = useState<{
+    x: number;
+    y: number;
+    health: number;
+    maxHealth: number;
+    attacking: boolean;
+  } | null>(null);
 
   const resourceRegion = state.battleState.resourceRegion;
   const playerArmy = state.battleState.playerArmy;
@@ -26,6 +42,27 @@ export const ResourceBossBattle = () => {
       setMaxBossHealth(resourceRegion.max_boss_health);
       setBattleLog([`${resourceRegion.resource_type.toUpperCase()} Boss'u ile savaş başlıyor!`]);
       setIsActive(true);
+      
+      // Initialize boss position
+      setBoss({
+        x: 700,
+        y: 200,
+        health: resourceRegion.boss_health,
+        maxHealth: resourceRegion.max_boss_health,
+        attacking: false
+      });
+
+      // Initialize army units
+      const initialUnits = playerArmy.map((unit, index) => ({
+        id: unit.id,
+        type: unit.type,
+        x: 50 + (index * 40),
+        y: 180 + (Math.random() * 80),
+        health: unit.health,
+        maxHealth: unit.health,
+        attacking: false
+      }));
+      setUnits(initialUnits);
       
       // Start the battle simulation
       setTimeout(() => startBattleSimulation(), 1000);
@@ -42,16 +79,25 @@ export const ResourceBossBattle = () => {
           return 0;
         }
 
-        // Calculate army damage per second
         const totalDamage = playerArmy.reduce((total, unit) => total + (unit.damage * unit.count), 0);
-        const damagePerSecond = Math.floor(totalDamage * 0.1); // 10% of total damage per second
+        const damagePerSecond = Math.floor(totalDamage * 0.1);
         
         const newHealth = Math.max(0, currentHealth - damagePerSecond);
         
         setBattleLog(prev => [
-          ...prev.slice(-10), // Keep only last 10 messages
+          ...prev.slice(-10),
           `Ordu ${damagePerSecond} hasar veriyor! Boss canı: ${newHealth}/${maxBossHealth}`
         ]);
+
+        // Update boss health visually
+        setBoss(prev => prev ? { ...prev, health: newHealth, attacking: true } : null);
+
+        // Make units attack animation
+        setUnits(prev => prev.map(unit => ({ ...unit, attacking: true })));
+        setTimeout(() => {
+          setUnits(prev => prev.map(unit => ({ ...unit, attacking: false })));
+          setBoss(prev => prev ? { ...prev, attacking: false } : null);
+        }, 500);
 
         if (newHealth <= 0) {
           setBattleLog(prev => [...prev, '🎉 Boss yenildi! Bölge ele geçirildi!']);
@@ -62,19 +108,7 @@ export const ResourceBossBattle = () => {
       });
     }, 1000);
 
-    // Boss also attacks back (optional - makes it more interesting)
-    const bossAttackInterval = setInterval(() => {
-      setBattleLog(prev => [
-        ...prev.slice(-10),
-        `Boss saldırıyor! Ordunuz direniyor...`
-      ]);
-    }, 3000);
-
-    // Cleanup on unmount
-    return () => {
-      clearInterval(interval);
-      clearInterval(bossAttackInterval);
-    };
+    return () => clearInterval(interval);
   }, [resourceRegion, playerArmy, maxBossHealth]);
 
   const completeBattle = async (victory: boolean) => {
@@ -83,10 +117,8 @@ export const ResourceBossBattle = () => {
     setIsActive(false);
     
     try {
-      const totalArmyPower = playerArmy.reduce((total, unit) => total + (unit.damage * unit.count), 0);
       const damageDealt = resourceRegion.boss_health - bossHealth;
 
-      // Save battle result
       const { error: battleError } = await supabase
         .from('resource_battles')
         .insert({
@@ -103,7 +135,6 @@ export const ResourceBossBattle = () => {
         console.error('Battle log save error:', battleError);
       }
 
-      // Update region
       const updateData: any = {
         boss_health: bossHealth
       };
@@ -111,7 +142,7 @@ export const ResourceBossBattle = () => {
       if (victory) {
         updateData.owner_id = user.id;
         updateData.captured_at = new Date().toISOString();
-        updateData.boss_health = resourceRegion.max_boss_health; // Reset for next attacker
+        updateData.boss_health = resourceRegion.max_boss_health;
       }
 
       const { error: updateError } = await supabase
@@ -134,7 +165,6 @@ export const ResourceBossBattle = () => {
       toast.error('Savaş tamamlanırken bir hata oluştu');
     }
 
-    // End battle and return to map
     setTimeout(() => {
       dispatch({ type: 'END_BATTLE' });
     }, 3000);
@@ -187,44 +217,116 @@ export const ResourceBossBattle = () => {
         </CardContent>
       </Card>
 
-      {/* Army Status */}
-      <Card>
+      {/* Live Battle Arena */}
+      <Card className="flex-1">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sword className="w-5 h-5" />
-            Ordunuz
+            Canlı Savaş Arenası
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {playerArmy.map(unit => (
-              <div key={unit.id} className="flex justify-between text-sm">
-                <span>{unit.count}x {unit.type}</span>
-                <span>{unit.damage * unit.count} hasar</span>
+        <CardContent className="p-0">
+          <div className="relative w-full h-64 bg-gradient-to-b from-green-200 to-green-400 border-2 border-gray-300 overflow-hidden">
+            {/* Army Units */}
+            {units.map((unit) => (
+              <div
+                key={unit.id}
+                className={`absolute transition-all duration-300 ${unit.attacking ? 'scale-110' : 'scale-100'}`}
+                style={{
+                  left: `${unit.x}px`,
+                  top: `${unit.y}px`,
+                  transform: unit.attacking ? 'translateX(10px)' : 'translateX(0px)'
+                }}
+              >
+                <div className="relative">
+                  {/* Unit Sprite */}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-lg ${
+                    unit.type === 'swordsman' ? 'bg-blue-600' :
+                    unit.type === 'archer' ? 'bg-green-600' :
+                    unit.type === 'cavalry' ? 'bg-red-600' :
+                    'bg-purple-600'
+                  }`}>
+                    {unit.type === 'swordsman' ? '⚔️' :
+                     unit.type === 'archer' ? '🏹' :
+                     unit.type === 'cavalry' ? '🐎' :
+                     '🔮'}
+                  </div>
+                  
+                  {/* Health Bar */}
+                  <div className="absolute -top-2 left-0 w-8 h-1 bg-gray-300 rounded">
+                    <div 
+                      className="h-full bg-green-500 rounded transition-all duration-300"
+                      style={{ width: `${(unit.health / unit.maxHealth) * 100}%` }}
+                    />
+                  </div>
+
+                  {/* Attack Effect */}
+                  {unit.attacking && (
+                    <div className="absolute -right-2 top-0 text-red-500 font-bold animate-bounce">
+                      💥
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
-            <div className="border-t pt-2">
-              <div className="flex justify-between font-medium">
-                <span>Toplam Güç:</span>
-                <span>{playerArmy.reduce((total, unit) => total + (unit.damage * unit.count), 0)}</span>
+
+            {/* Boss */}
+            {boss && (
+              <div
+                className={`absolute transition-all duration-300 ${boss.attacking ? 'scale-110 animate-pulse' : 'scale-100'}`}
+                style={{
+                  left: `${boss.x}px`,
+                  top: `${boss.y}px`
+                }}
+              >
+                <div className="relative">
+                  {/* Boss Sprite */}
+                  <div className="w-16 h-16 bg-red-800 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg border-4 border-red-600">
+                    👹
+                  </div>
+                  
+                  {/* Boss Health Bar */}
+                  <div className="absolute -top-3 left-0 w-16 h-2 bg-gray-300 rounded">
+                    <div 
+                      className="h-full bg-red-500 rounded transition-all duration-300"
+                      style={{ width: `${(boss.health / boss.maxHealth) * 100}%` }}
+                    />
+                  </div>
+
+                  {/* Boss Attack Effect */}
+                  {boss.attacking && (
+                    <div className="absolute -left-4 top-4 text-orange-500 font-bold animate-ping">
+                      🔥
+                    </div>
+                  )}
+                </div>
               </div>
+            )}
+
+            {/* Battle Effects */}
+            <div className="absolute inset-0 pointer-events-none">
+              {isActive && (
+                <div className="absolute top-4 left-4 text-yellow-400 font-bold animate-pulse">
+                  ⚔️ SAVAŞ DEVAM EDİYOR
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Battle Log */}
-      <Card className="flex-1">
+      {/* Battle Log (Compressed) */}
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5" />
-            Canlı Savaş Raporu
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Shield className="w-4 h-4" />
+            Savaş Raporu
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="max-h-64 overflow-y-auto space-y-1">
-            {battleLog.map((log, index) => (
-              <div key={index} className="text-sm font-mono p-2 bg-gray-50 rounded">
+          <div className="max-h-32 overflow-y-auto space-y-1">
+            {battleLog.slice(-5).map((log, index) => (
+              <div key={index} className="text-xs font-mono p-1 bg-gray-50 rounded">
                 {log}
               </div>
             ))}
