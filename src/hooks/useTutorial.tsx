@@ -40,14 +40,46 @@ export const useTutorial = () => {
         .from('user_tutorial_progress')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle(); // single() yerine maybeSingle() kullanıyoruz
 
       if (error) {
         console.error('Tutorial progress yüklenemedi:', error);
         return;
       }
 
-      // Convert the data to match our interface
+      if (!data) {
+        // Eğer tutorial verisi yoksa, yeni kullanıcı için oluştur
+        console.log('Tutorial verisi yok, yeni tutorial başlatılıyor...');
+        const { data: newTutorial, error: insertError } = await supabase
+          .from('user_tutorial_progress')
+          .insert({
+            user_id: user.id,
+            current_step: 'move_castle',
+            tutorial_completed: false,
+            step_data: {},
+            completed_steps: []
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Yeni tutorial oluşturulamadı:', insertError);
+          return;
+        }
+
+        // Yeni tutorial verisini set et
+        const tutorialData: TutorialProgress = {
+          current_step: newTutorial.current_step,
+          tutorial_completed: false,
+          step_data: {},
+          completed_steps: []
+        };
+        setTutorialProgress(tutorialData);
+        setLoading(false);
+        return;
+      }
+
+      // Mevcut tutorial verisini convert et
       const tutorialData: TutorialProgress = {
         current_step: data.current_step,
         tutorial_completed: data.tutorial_completed || false,
@@ -79,7 +111,7 @@ export const useTutorial = () => {
         return false;
       }
 
-      // Give reward for completing step
+      // Give reward for completing step (completed step hariç)
       if (nextStep !== 'completed') {
         await supabase.rpc('complete_tutorial_step_reward');
         toast.success('🎉 Tutorial adımı tamamlandı! 100,000 kaynak kazandınız!');
@@ -95,7 +127,33 @@ export const useTutorial = () => {
   };
 
   const completeTutorial = async () => {
-    return await updateTutorialStep('completed');
+    if (!user) return false;
+    
+    try {
+      // Tutorial'ı completed olarak işaretle
+      const { error } = await supabase.rpc('update_tutorial_step', {
+        new_step: 'completed',
+        step_data_update: {}
+      });
+
+      if (error) {
+        console.error('Tutorial tamamlanamadı:', error);
+        return false;
+      }
+
+      toast.success('🎉 Tutorial tamamlandı! Oyunun tüm özelliklerine erişiminiz açıldı!');
+      
+      // Progress'i reload et
+      await loadTutorialProgress();
+      
+      // Sayfayı yenile (normal oyun moduna geç)
+      window.location.reload();
+      
+      return true;
+    } catch (error) {
+      console.error('Tutorial tamamlanamadı:', error);
+      return false;
+    }
   };
 
   return {
