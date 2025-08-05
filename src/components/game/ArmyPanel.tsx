@@ -72,27 +72,45 @@ export const ArmyPanel = () => {
   const { tutorialProgress, isTutorialActive, currentStep, updateTutorialStep } = useTutorial();
   const [selectedUnit, setSelectedUnit] = useState<string>('');
 
-  const createUnit = async (unitTypeId: string) => {
+  const createUnit = async (unitTypeId: string, quantity: number = 100) => {
     const unitType = unitTypes.find(u => u.id === unitTypeId);
     if (!unitType) return;
 
-    const success = await spendResources(unitType.cost);
+    const totalCost = unitType.cost * quantity;
+    const success = await spendResources(totalCost);
     if (!success) return;
 
-    const newUnit = {
-      id: `${unitTypeId}_${Date.now()}`,
-      type: unitTypeId as any,
-      count: 1,
-      health: unitType.health,
-      damage: unitType.damage
-    };
+    // Mevcut aynı türden birimi bul veya yeni bir tane oluştur
+    const existingUnitIndex = state.army.findIndex(unit => unit.type === unitTypeId);
+    
+    if (existingUnitIndex !== -1) {
+      // Mevcut birimin sayısını artır
+      const updatedArmy = [...state.army];
+      updatedArmy[existingUnitIndex] = {
+        ...updatedArmy[existingUnitIndex],
+        count: updatedArmy[existingUnitIndex].count + quantity
+      };
+      
+      // Army'yi güncelle (dispatch ile değil, doğrudan state'i güncelleyelim)
+      dispatch({ type: 'SET_ARMY', payload: updatedArmy });
+    } else {
+      // Yeni birim oluştur
+      const newUnit = {
+        id: `${unitTypeId}_${Date.now()}`,
+        type: unitTypeId as any,
+        count: quantity,
+        health: unitType.health,
+        damage: unitType.damage
+      };
 
-    dispatch({ type: 'CREATE_ARMY_UNIT', payload: newUnit });
-    toast.success(`${unitType.name} eğitildi!`);
+      dispatch({ type: 'CREATE_ARMY_UNIT', payload: newUnit });
+    }
+
+    toast.success(`${quantity} adet ${unitType.name} eğitildi!`);
 
     // Tutorial check for army training
     if (isTutorialActive && currentStep === 'train_army') {
-      const totalArmyCount = state.army.reduce((sum, unit) => sum + unit.count, 0) + 1;
+      const totalArmyCount = state.army.reduce((sum, unit) => sum + unit.count, 0) + quantity;
       
       // Check if we have at least 1 of each unit type and 1000+ total
       const unitTypesInArmy = new Set([...state.army.map(u => u.type), unitTypeId]);
@@ -172,15 +190,15 @@ export const ArmyPanel = () => {
                     
                     <div className="text-right">
                       <div className="text-xs text-muted-foreground mb-1">
-                        {unit.cost} kaynak
+                        {unit.cost * 100} kaynak (100 adet)
                       </div>
                       <Button
                         size="sm"
-                        onClick={() => createUnit(unit.id)}
-                        disabled={!canAfford(unit.cost)}
+                        onClick={() => createUnit(unit.id, 100)}
+                        disabled={!canAfford(unit.cost * 100)}
                         className="h-7 text-xs"
                       >
-                        Eğit
+                        Eğit (100)
                       </Button>
                     </div>
                   </div>
