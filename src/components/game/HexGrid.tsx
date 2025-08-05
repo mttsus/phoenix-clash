@@ -36,10 +36,10 @@ interface ResourceRegion {
   captured_at?: string;
 }
 
-// Genişletilmiş harita yapısı - 100 bölümden oluşan dünya haritası
+// Genişletilmiş harita yapısı - 150+ bölümden oluşan büyük dünya haritası
 const generateWorldMap = () => {
   const tiles = [];
-  const radius = 6; // Daha büyük harita için radius artırıldı
+  const radius = 8; // Daha büyük harita için radius artırıldı
   
   for (let q = -radius; q <= radius; q++) {
     const r1 = Math.max(-radius, -q - radius);
@@ -54,10 +54,10 @@ const generateWorldMap = () => {
       
       let type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest' = 'plain';
       if (q === 0 && r === 0) type = 'castle'; // Merkez kale
-      else if (rand < 0.25) type = 'forest';
-      else if (rand < 0.4) type = 'mountain';
-      else if (rand < 0.5) type = 'mine';
-      else if (rand < 0.55) type = 'chest';
+      else if (rand < 0.3) type = 'forest';
+      else if (rand < 0.5) type = 'mountain';
+      else if (rand < 0.65) type = 'mine';
+      else if (rand < 0.7) type = 'chest';
       
       tiles.push({ q, r, s, type });
     }
@@ -81,7 +81,7 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   resourceRegion?: ResourceRegion;
 }) => {
   const { user } = useAuth();
-  const size = 25;
+  const size = 30; // Hex boyutunu büyütüldü
   const width = size * 2;
   const height = size * Math.sqrt(3);
   
@@ -90,9 +90,9 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   
   const getColor = () => {
     if (resourceRegion) {
-      if (resourceRegion.owner_id === user?.id) return 'fill-green-400'; // Own resource region
-      if (resourceRegion.owner_id) return 'fill-orange-400'; // Enemy resource region
-      return 'fill-yellow-300'; // Unclaimed resource region
+      if (resourceRegion.owner_id === user?.id) return 'fill-green-500'; // Own resource region
+      if (resourceRegion.owner_id) return 'fill-orange-500'; // Enemy resource region
+      return 'fill-yellow-400'; // Unclaimed resource region
     }
     if (hasShield) return 'fill-cyan-400';
     if (isOwnCastle) return 'fill-blue-600';
@@ -146,26 +146,26 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   };
 
   return (
-    <g transform={`translate(${x + 400}, ${y + 400})`}>
+    <g transform={`translate(${x + 600}, ${y + 600})`}>
       <polygon
-        points="-22,0 -11,-19 11,-19 22,0 11,19 -11,19"
+        points="-26,0 -13,-23 13,-23 26,0 13,23 -13,23"
         className={`${getColor()} stroke-2 cursor-pointer transition-all hover:opacity-80 ${getStrokeColor()}`}
         onClick={onClick}
       />
       <text 
         x="0" 
-        y="2" 
+        y="3" 
         textAnchor="middle" 
-        className="text-xs pointer-events-none"
+        className="text-sm pointer-events-none"
       >
         {getIcon()}
       </text>
       {playerName && (
         <text 
           x="0" 
-          y="14" 
+          y="18" 
           textAnchor="middle" 
-          className="text-[7px] fill-current text-foreground pointer-events-none font-bold"
+          className="text-[8px] fill-current text-foreground pointer-events-none font-bold"
         >
           {playerName.slice(0, 8)}
         </text>
@@ -173,9 +173,9 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
       {resourceRegion && (
         <text 
           x="0" 
-          y="-12" 
+          y="-15" 
           textAnchor="middle" 
-          className="text-[8px] fill-current text-foreground pointer-events-none font-bold"
+          className="text-[10px] fill-current text-foreground pointer-events-none font-bold"
         >
           {resourceRegion.owner_id === user?.id ? '✅' : resourceRegion.owner_id ? '👑' : '💀'}
         </text>
@@ -195,6 +195,13 @@ export const HexGrid = () => {
   const [userHasShield, setUserHasShield] = useState(false);
   const [selectedResourceRegion, setSelectedResourceRegion] = useState<ResourceRegion | null>(null);
   const [isBattleOpen, setIsBattleOpen] = useState(false);
+
+  useEffect(() => {
+    // Harita tiles'ını oluştur
+    const worldMap = generateWorldMap();
+    setTiles(worldMap);
+    console.log('Generated tiles:', worldMap.length);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -245,6 +252,7 @@ export const HexGrid = () => {
         return;
       }
 
+      console.log('Fetched resource regions:', regions);
       setResourceRegions(regions || []);
     } catch (err) {
       console.error('Unexpected error in fetchResourceRegions:', err);
@@ -556,10 +564,10 @@ export const HexGrid = () => {
         )}
       </div>
       
-      {/* Tam Ekran Harita */}
+      {/* Büyük Tam Ekran Harita */}
       <div className="w-full h-full flex items-center justify-center pt-20 pb-4">
         <div className="overflow-auto max-h-full max-w-full">
-          <svg width="800" height="800" viewBox="0 0 800 800" className="w-full h-auto">
+          <svg width="1200" height="1200" viewBox="0 0 1200 1200" className="w-full h-auto">
             {tiles.map((tile, index) => {
               const playerOnTile = getPlayerOnTile(tile.q, tile.r);
               const resourceRegion = getResourceRegionOnTile(tile.q, tile.r);
@@ -593,7 +601,7 @@ export const HexGrid = () => {
       <div className="absolute bottom-4 left-4 right-4 z-10">
         <div className="bg-white/95 backdrop-blur-sm rounded-lg p-4 shadow-lg">
           <h3 className="text-sm font-semibold mb-2">
-            Dünya Sunucusu - Aktif Kaleler ({userPositions.length}) • Kaynak Bölgeleri ({resourceRegions.length})
+            Dünya Sunucusu - Aktif Kaleler ({userPositions.length}) • Kaynak Bölgeleri ({resourceRegions.length}) • Toplam Bölge ({tiles.length})
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
