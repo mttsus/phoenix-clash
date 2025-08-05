@@ -66,7 +66,7 @@ export const ResourceBattle = ({ region, isOpen, onClose, onBattleComplete }: Re
     const log = [
       `${armyCount} asker ile saldırıya geçtiniz!`,
       `Boss'a ${damageDealt} hasar verdiniz!`,
-      victory ? '🎉 Boss'u yendiniz! Bölge artık sizin!' : `Boss'un kalan canı: ${newBossHealth}`
+      victory ? '🎉 Boss\'u yendiniz! Bölge artık sizin!' : `Boss'un kalan canı: ${newBossHealth}`
     ];
     
     setBattleLog(log);
