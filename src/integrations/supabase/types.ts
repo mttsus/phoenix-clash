@@ -352,6 +352,7 @@ export type Database = {
       }
       user_positions: {
         Row: {
+          has_shield: boolean | null
           id: string
           placed_at: string
           q: number
@@ -360,6 +361,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          has_shield?: boolean | null
           id?: string
           placed_at?: string
           q: number
@@ -368,6 +370,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          has_shield?: boolean | null
           id?: string
           placed_at?: string
           q?: number

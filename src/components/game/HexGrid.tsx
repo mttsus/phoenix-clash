@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -198,8 +199,14 @@ export const HexGrid = () => {
         return;
       }
 
+      if (!positions) {
+        console.log('No positions found');
+        setUserPositions([]);
+        return;
+      }
+
       const positionsWithUsernames = await Promise.all(
-        (positions || []).map(async (pos) => {
+        positions.map(async (pos) => {
           const { data: profile } = await supabase
             .from('profiles')
             .select('username')
@@ -209,7 +216,7 @@ export const HexGrid = () => {
           return {
             ...pos,
             username: profile?.username || 'Anonim'
-          };
+          } as UserPosition;
         })
       );
 
