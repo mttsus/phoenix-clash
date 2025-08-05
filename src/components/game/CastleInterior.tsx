@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Card,
@@ -75,13 +76,26 @@ export const CastleInterior = ({
         return;
       }
 
-      setBuildings(data || []);
+      // Map the data to match our Building interface
+      const buildingsData: Building[] = (data || []).map(building => ({
+        id: building.id,
+        type: building.type,
+        level: building.level,
+        completion_time: building.completion_time
+      }));
+
+      setBuildings(buildingsData);
     } catch (err) {
       console.error('Unexpected error:', err);
     }
   };
 
   const startConstruction = async (buildingType: string) => {
+    if (!buildingType.trim()) {
+      toast.error('Lütfen bir bina tipi girin');
+      return;
+    }
+
     setConstructing(true);
     try {
       const { data, error } = await supabase
@@ -91,7 +105,8 @@ export const CastleInterior = ({
           type: buildingType,
           level: 1,
           completion_time: new Date(Date.now() + 60000).toISOString() // 1 minute
-        }]);
+        }])
+        .select();
 
       if (error) {
         console.error('Construction start error:', error);
@@ -117,6 +132,11 @@ export const CastleInterior = ({
   };
 
   const upgradeBuilding = async (buildingId: string) => {
+    if (!buildingId) {
+      toast.error('Lütfen yükseltilecek binayı seçin');
+      return;
+    }
+
     setUpgrading(true);
     try {
       const building = buildings.find(b => b.id === buildingId);
@@ -131,7 +151,8 @@ export const CastleInterior = ({
         .update({
           level: building.level + 1
         })
-        .eq('id', buildingId);
+        .eq('id', buildingId)
+        .select();
 
       if (error) {
         console.error('Upgrade error:', error);

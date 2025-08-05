@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      buildings: {
+        Row: {
+          completion_time: string | null
+          created_at: string
+          id: string
+          level: number
+          owner_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          completion_time?: string | null
+          created_at?: string
+          id?: string
+          level?: number
+          owner_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          completion_time?: string | null
+          created_at?: string
+          id?: string
+          level?: number
+          owner_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       game_catapults: {
         Row: {
           created_at: string | null
