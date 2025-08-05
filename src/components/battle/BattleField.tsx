@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -187,10 +186,10 @@ export const BattleField = () => {
               target: nearestEnemyUnit, 
               isMoving: false, 
               lastAttack: battleTime,
-              state: 'fighting'
+              state: 'fighting' as const
             };
           }
-          return { ...unit, isMoving: false, state: 'fighting' };
+          return { ...unit, isMoving: false, state: 'fighting' as const };
         }
 
         // 3. If no enemy units nearby, find nearest enemy building
@@ -240,10 +239,10 @@ export const BattleField = () => {
               ...unit, 
               lastAttack: battleTime, 
               isMoving: false,
-              state: 'attacking_building'
+              state: 'attacking_building' as const
             };
           }
-          return { ...unit, isMoving: false, state: 'attacking_building' };
+          return { ...unit, isMoving: false, state: 'attacking_building' as const };
         }
 
         // 5. Move toward nearest target
@@ -262,7 +261,7 @@ export const BattleField = () => {
               ...unit, 
               position: { x: newX, y: newY },
               isMoving: true,
-              state: 'moving'
+              state: 'moving' as const
             };
           }
         } else if (nearestBuilding) {
@@ -280,7 +279,7 @@ export const BattleField = () => {
               ...unit, 
               position: { x: newX, y: newY },
               isMoving: true,
-              state: 'moving'
+              state: 'moving' as const
             };
           }
         }
