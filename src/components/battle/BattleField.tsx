@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ interface Unit {
   target?: Unit | Tower | Castle;
   isMoving: boolean;
   lastAttack: number;
+  isAttackingTower: boolean;
 }
 
 interface Catapult {
@@ -401,7 +403,8 @@ export const BattleField = () => {
       damage: config.damage,
       speed: config.speed,
       isMoving: true,
-      lastAttack: 0
+      lastAttack: 0,
+      isAttackingTower: false
     };
 
     setUnits(prev => [...prev, newUnit]);
@@ -425,7 +428,8 @@ export const BattleField = () => {
       damage: config.damage,
       speed: config.speed,
       isMoving: true,
-      lastAttack: 0
+      lastAttack: 0,
+      isAttackingTower: false
     };
 
     setUnits(prev => [...prev, enemyUnit]);
@@ -436,7 +440,48 @@ export const BattleField = () => {
       const updatedUnits = prevUnits.map(unit => {
         if (unit.health <= 0) return unit;
 
-        // Find nearest enemy
+        // 1. Önce düşman kulelerini kontrol et
+        const enemyTowersInLane = towers.filter(tower => 
+          tower.team !== unit.team && 
+          tower.health > 0 && 
+          tower.lane === unit.lane
+        );
+
+        // En yakın düşman kuleyi bul
+        let nearestEnemyTower = null;
+        let minTowerDistance = Infinity;
+        
+        for (const tower of enemyTowersInLane) {
+          const distance = Math.abs(tower.position.x - unit.position.x);
+          if (distance < minTowerDistance) {
+            minTowerDistance = distance;
+            nearestEnemyTower = tower;
+          }
+        }
+
+        // Eğer kule yakınsa (80 pixel içinde) ona saldır
+        if (nearestEnemyTower && minTowerDistance < 80) {
+          if (battleTime - unit.lastAttack >= 1) {
+            // Kuleye saldır
+            setTowers(prevTowers => prevTowers.map(tower => {
+              if (tower.id === nearestEnemyTower.id) {
+                const newHealth = Math.max(0, tower.health - unit.damage);
+                return { ...tower, health: newHealth };
+              }
+              return tower;
+            }));
+            
+            return { 
+              ...unit, 
+              lastAttack: battleTime, 
+              isMoving: false, 
+              isAttackingTower: true 
+            };
+          }
+          return { ...unit, isMoving: false, isAttackingTower: true };
+        }
+
+        // 2. Kule yoksa veya uzaksa, düşman askerleri kontrol et
         const enemies = prevUnits.filter(u => 
           u.team !== unit.team && 
           u.health > 0 && 
@@ -455,39 +500,49 @@ export const BattleField = () => {
           
           if (distance < 80) {
             if (battleTime - unit.lastAttack >= 1) {
-              return { ...unit, target: nearestEnemy, isMoving: false, lastAttack: battleTime };
+              return { 
+                ...unit, 
+                target: nearestEnemy, 
+                isMoving: false, 
+                lastAttack: battleTime,
+                isAttackingTower: false 
+              };
             }
-            return { ...unit, isMoving: false };
+            return { ...unit, isMoving: false, isAttackingTower: false };
           }
         }
 
-        // No enemies nearby, move towards enemy castle
+        // 3. Düşman kale kontrolü
+        const enemyCastle = castles.find(c => c.team !== unit.team);
+        if (enemyCastle && Math.abs(unit.position.x - enemyCastle.position.x) < 100) {
+          if (battleTime - unit.lastAttack >= 1) {
+            setCastles(prev => prev.map(castle => {
+              if (castle.team !== unit.team) {
+                const newHealth = Math.max(0, castle.health - unit.damage);
+                return { ...castle, health: newHealth };
+              }
+              return castle;
+            }));
+            return { ...unit, lastAttack: battleTime, isAttackingTower: false };
+          }
+        }
+
+        // 4. Hiç düşman yoksa ilerle
         if (unit.isMoving) {
           const direction = unit.team === 'player' ? 1 : -1;
           const newX = unit.position.x + (unit.speed / 10) * direction;
           
-          // Check if reached enemy castle
-          const enemyCastle = castles.find(c => c.team !== unit.team);
-          if (enemyCastle && Math.abs(newX - enemyCastle.position.x) < 100) {
-            if (battleTime - unit.lastAttack >= 1) {
-              setCastles(prev => prev.map(castle => {
-                if (castle.team !== unit.team) {
-                  const newHealth = Math.max(0, castle.health - unit.damage);
-                  return { ...castle, health: newHealth };
-                }
-                return castle;
-              }));
-              return { ...unit, lastAttack: battleTime };
-            }
-          }
-
-          return { ...unit, position: { ...unit.position, x: newX } };
+          return { 
+            ...unit, 
+            position: { ...unit.position, x: newX },
+            isAttackingTower: false
+          };
         }
 
         return unit;
       });
 
-      // Handle combat damage
+      // Handle combat damage between units
       const finalUnits = updatedUnits.map(unit => {
         if (unit.target && unit.lastAttack === battleTime) {
           const targetIndex = updatedUnits.findIndex(u => u.id === unit.target?.id);
@@ -747,6 +802,9 @@ export const BattleField = () => {
                             style={{ width: `${(unit.health / unit.maxHealth) * 100}%` }}
                           />
                         </div>
+                        {unit.isAttackingTower && (
+                          <div className="text-xs text-center text-red-600 font-bold">⚔️</div>
+                        )}
                       </div>
                     ))}
 
@@ -781,6 +839,7 @@ export const BattleField = () => {
               <div>Aktif Birimler: {units.length}</div>
               <div>Aktif Mancınıklar: {catapults.length}</div>
               <div>Aktif Kuleler: {towers.filter(t => t.health > 0).length}</div>
+              <div>Kule Saldırısı Yapan: {units.filter(u => u.isAttackingTower).length}</div>
             </div>
           </div>
         </div>
