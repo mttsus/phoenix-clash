@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -18,7 +17,7 @@ interface Castle {
 interface Tower {
   id: string;
   team: 'player' | 'enemy';
-  side: 'left' | 'right'; // Only 2 defense towers per team
+  side: 'left' | 'right';
   health: number;
   maxHealth: number;
   position: { x: number; y: number };
@@ -29,7 +28,7 @@ interface Unit {
   id: string;
   type: 'swordsman' | 'archer' | 'cavalry' | 'mage_fire';
   team: 'player' | 'enemy';
-  path: 'left' | 'center' | 'right'; // 3 possible paths
+  path: 'left' | 'center' | 'right';
   position: { x: number; y: number };
   health: number;
   maxHealth: number;
@@ -43,17 +42,17 @@ interface Unit {
 }
 
 const UNIT_CONFIGS = {
-  swordsman: { icon: '⚔️', health: 400, damage: 100, speed: 80, cost: 2 },
-  archer: { icon: '🏹', health: 300, damage: 120, speed: 90, cost: 3 },
-  cavalry: { icon: '🐎', health: 600, damage: 140, speed: 120, cost: 4 },
-  mage_fire: { icon: '🔥', health: 250, damage: 180, speed: 70, cost: 5 }
+  swordsman: { icon: '⚔️', health: 400, damage: 100, speed: 100, cost: 2 },
+  archer: { icon: '🏹', health: 300, damage: 120, speed: 110, cost: 3 },
+  cavalry: { icon: '🐎', health: 600, damage: 140, speed: 130, cost: 4 },
+  mage_fire: { icon: '🔥', health: 250, damage: 180, speed: 90, cost: 5 }
 };
 
-// Path configurations for 3 routes
+// Improved path configurations for cleaner layout
 const PATH_CONFIGS = {
-  left: { startX: 150, centerX: 200, targetX: 250 },
-  center: { startX: 350, centerX: 400, targetX: 450 },
-  right: { startX: 550, centerX: 600, targetX: 650 }
+  left: { startX: 200, centerX: 250, targetX: 300 },
+  center: { startX: 400, centerX: 400, targetX: 400 },
+  right: { startX: 600, centerX: 550, targetX: 500 }
 };
 
 export const BattleField = () => {
@@ -69,14 +68,14 @@ export const BattleField = () => {
   // Initialize single castle system with defense towers
   useEffect(() => {
     const initialTowers: Tower[] = [
-      // Player defense towers (left and right of castle)
+      // Player defense towers (symmetrically positioned)
       {
         id: 'player-tower-left',
         team: 'player',
         side: 'left',
         health: 800,
         maxHealth: 800,
-        position: { x: 300, y: 520 },
+        position: { x: 320, y: 480 },
         lastAttack: 0
       },
       {
@@ -85,17 +84,17 @@ export const BattleField = () => {
         side: 'right',
         health: 800,
         maxHealth: 800,
-        position: { x: 500, y: 520 },
+        position: { x: 480, y: 480 },
         lastAttack: 0
       },
-      // Enemy defense towers
+      // Enemy defense towers (symmetrically positioned)
       {
         id: 'enemy-tower-left',
         team: 'enemy',
         side: 'left', 
         health: 800,
         maxHealth: 800,
-        position: { x: 300, y: 180 },
+        position: { x: 320, y: 220 },
         lastAttack: 0
       },
       {
@@ -104,7 +103,7 @@ export const BattleField = () => {
         side: 'right',
         health: 800,
         maxHealth: 800,
-        position: { x: 500, y: 180 },
+        position: { x: 480, y: 220 },
         lastAttack: 0
       }
     ];
@@ -116,14 +115,14 @@ export const BattleField = () => {
         team: 'player',
         health: 3000,
         maxHealth: 3000,
-        position: { x: 400, y: 580 }
+        position: { x: 400, y: 550 }
       },
       {
         id: 'enemy-castle',
         team: 'enemy', 
         health: 3000,
         maxHealth: 3000,
-        position: { x: 400, y: 120 }
+        position: { x: 400, y: 150 }
       }
     ]);
   }, []);
@@ -204,7 +203,7 @@ export const BattleField = () => {
         side: 'left',
         health: 800,
         maxHealth: 800,
-        position: { x: 300, y: 520 },
+        position: { x: 320, y: 480 },
         lastAttack: 0
       },
       {
@@ -213,7 +212,7 @@ export const BattleField = () => {
         side: 'right',
         health: 800,
         maxHealth: 800,
-        position: { x: 500, y: 520 },
+        position: { x: 480, y: 480 },
         lastAttack: 0
       },
       {
@@ -222,7 +221,7 @@ export const BattleField = () => {
         side: 'left',
         health: 800,
         maxHealth: 800,
-        position: { x: 300, y: 180 },
+        position: { x: 320, y: 220 },
         lastAttack: 0
       },
       {
@@ -231,7 +230,7 @@ export const BattleField = () => {
         side: 'right',
         health: 800,
         maxHealth: 800,
-        position: { x: 500, y: 180 },
+        position: { x: 480, y: 220 },
         lastAttack: 0
       }
     ];
@@ -243,14 +242,14 @@ export const BattleField = () => {
         team: 'player',
         health: 3000,
         maxHealth: 3000,
-        position: { x: 400, y: 580 }
+        position: { x: 400, y: 550 }
       },
       {
         id: 'enemy-castle',
         team: 'enemy',
         health: 3000,
         maxHealth: 3000,
-        position: { x: 400, y: 120 }
+        position: { x: 400, y: 150 }
       }
     ]);
   };
@@ -271,7 +270,7 @@ export const BattleField = () => {
       type: unitType,
       team: 'player',
       path,
-      position: { x: pathConfig.startX, y: 560 },
+      position: { x: pathConfig.startX, y: 520 },
       health: config.health,
       maxHealth: config.health,
       damage: config.damage,
@@ -299,7 +298,7 @@ export const BattleField = () => {
       type: randomType,
       team: 'enemy',
       path: randomPath,
-      position: { x: pathConfig.startX, y: 140 },
+      position: { x: pathConfig.startX, y: 180 },
       health: config.health,
       maxHealth: config.health,
       damage: config.damage,
@@ -462,17 +461,17 @@ export const BattleField = () => {
 
   const getPathColor = (path: 'left' | 'center' | 'right') => {
     switch (path) {
-      case 'left': return 'border-blue-400 bg-blue-50/30';
-      case 'center': return 'border-green-400 bg-green-50/30';
-      case 'right': return 'border-red-400 bg-red-50/30';
+      case 'left': return 'border-blue-400/60 bg-blue-50/20';
+      case 'center': return 'border-green-400/60 bg-green-50/20';
+      case 'right': return 'border-red-400/60 bg-red-50/20';
     }
   };
 
   const getUnitBoundaryStyle = (unit: Unit) => {
     if (unit.team === 'player') {
-      return 'shadow-xl shadow-blue-500/50 border-2 border-blue-500 bg-blue-200/80 rounded-xl p-2 transform scale-110';
+      return 'shadow-lg shadow-blue-500/40 border border-blue-400 bg-blue-100/90 rounded-lg p-1.5';
     } else {
-      return 'shadow-xl shadow-red-500/50 border-2 border-red-500 bg-red-200/80 rounded-xl p-2 transform scale-110';
+      return 'shadow-lg shadow-red-500/40 border border-red-400 bg-red-100/90 rounded-lg p-1.5';
     }
   };
 
@@ -482,68 +481,71 @@ export const BattleField = () => {
   if (!state.battleState.inBattle) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-[95vw] h-[95vh] flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-bold">Clash Royale Tarzı Savaş Arenası</h2>
-            <p className="text-sm text-gray-600">
-              Süre: {Math.floor(battleTime / 60)}:{String(battleTime % 60).padStart(2, '0')}
-              {gameResult && (
-                <span className={`ml-4 font-bold ${gameResult === 'win' ? 'text-green-600' : 'text-red-600'}`}>
-                  {gameResult === 'win' ? '🎉 KAZANDIN!' : '💀 KAYBETTİN!'}
-                </span>
-              )}
-            </p>
-          </div>
+    <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl w-[96vw] h-[96vh] flex flex-col shadow-2xl">
+        {/* Clean Header */}
+        <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-red-50 rounded-t-xl flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Badge variant="secondary">Mana: {mana}/10</Badge>
-            <Badge variant="outline">Aktif Askerler: {units.length}</Badge>
-            <Button onClick={endBattle} variant="outline" size="sm">
+            <h2 className="text-xl font-bold text-gray-800">🏰 Savaş Arenası</h2>
+            <Badge variant="secondary" className="text-sm">
+              {Math.floor(battleTime / 60)}:{String(battleTime % 60).padStart(2, '0')}
+            </Badge>
+            {gameResult && (
+              <Badge variant={gameResult === 'win' ? 'default' : 'destructive'} className="text-sm">
+                {gameResult === 'win' ? '🎉 KAZANDIN!' : '💀 KAYBETTİN!'}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="bg-purple-50">⚡ {mana}/10</Badge>
+            <Badge variant="outline" className="bg-yellow-50">⚔️ {units.length}</Badge>
+            <Button onClick={endBattle} variant="outline" size="sm" className="hover:bg-red-50">
               <X className="w-4 h-4" />
             </Button>
           </div>
         </div>
 
         <div className="flex-1 flex">
-          {/* Left Panel - Unit Deployment */}
-          <div className="w-72 border-r p-4 space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Kale Durumu</CardTitle>
+          {/* Organized Left Panel */}
+          <div className="w-80 border-r p-4 space-y-4 bg-gray-50/50">
+            {/* Castle Status */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  🏰 Kale Durumu
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs">Senin Kalen 🏰</span>
-                    <span className="text-xs">{playerCastle?.health}/{playerCastle?.maxHealth}</span>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm font-medium">
+                    <span className="text-blue-700">🔵 Senin Kalen</span>
+                    <span className="text-gray-600">{playerCastle?.health}/{playerCastle?.maxHealth}</span>
                   </div>
-                  <Progress value={playerCastle ? (playerCastle.health / playerCastle.maxHealth) * 100 : 0} className="h-3" />
+                  <Progress value={playerCastle ? (playerCastle.health / playerCastle.maxHealth) * 100 : 0} className="h-2" />
                 </div>
                 
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs">Düşman Kalesi 🏰</span>
-                    <span className="text-xs">{enemyCastle?.health}/{enemyCastle?.maxHealth}</span>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm font-medium">
+                    <span className="text-red-700">🔴 Düşman Kalesi</span>
+                    <span className="text-gray-600">{enemyCastle?.health}/{enemyCastle?.maxHealth}</span>
                   </div>
-                  <Progress value={enemyCastle ? (enemyCastle.health / enemyCastle.maxHealth) * 100 : 100} className="h-3" />
+                  <Progress value={enemyCastle ? (enemyCastle.health / enemyCastle.maxHealth) * 100 : 100} className="h-2" />
                 </div>
               </CardContent>
             </Card>
 
-            {/* Unit Deployment */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Asker Gönder - 3 Yol</CardTitle>
+            {/* Unit Deployment - Organized */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">⚔️ Asker Gönderimi</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
                 {(['left', 'center', 'right'] as const).map(path => (
-                  <div key={path} className="space-y-2">
-                    <div className="text-xs font-medium">
+                  <div key={path} className="border rounded-lg p-3 bg-white/60">
+                    <div className="text-sm font-semibold mb-3 text-center">
                       {path === 'left' ? '🔵 Sol Yol' : path === 'center' ? '🟢 Orta Yol' : '🔴 Sağ Yol'}
                     </div>
-                    <div className="grid grid-cols-2 gap-1">
+                    <div className="grid grid-cols-4 gap-2">
                       {Object.entries(UNIT_CONFIGS).map(([unitType, config]) => (
                         <Button
                           key={unitType}
@@ -551,10 +553,10 @@ export const BattleField = () => {
                           variant="outline"
                           onClick={() => deployUnit(unitType as keyof typeof UNIT_CONFIGS, path)}
                           disabled={mana < config.cost || !battleActive}
-                          className="text-xs p-2 h-12 flex flex-col"
+                          className="h-16 flex flex-col gap-1 hover:scale-105 transition-transform"
                         >
                           <span className="text-lg">{config.icon}</span>
-                          <span className="text-xs">{config.cost}⚡</span>
+                          <span className="text-xs font-bold text-purple-600">{config.cost}⚡</span>
                         </Button>
                       ))}
                     </div>
@@ -563,55 +565,61 @@ export const BattleField = () => {
               </CardContent>
             </Card>
 
+            {/* Battle Control */}
             {!battleActive ? (
-              <Button onClick={startBattle} className="w-full" size="lg">
+              <Button onClick={startBattle} className="w-full h-12 text-lg bg-green-600 hover:bg-green-700" size="lg">
                 🚀 Savaşı Başlat
               </Button>
             ) : (
-              <Button onClick={endBattle} variant="destructive" className="w-full" size="lg">
+              <Button onClick={endBattle} variant="destructive" className="w-full h-12 text-lg" size="lg">
                 🏃‍♂️ Savaştan Çık
               </Button>
             )}
           </div>
 
-          {/* Battle Arena - 3D Style Single Castle System */}
-          <div className="flex-1 relative bg-gradient-to-b from-red-300 via-yellow-200 to-blue-300 overflow-hidden">
-            {/* 3D Arena Background */}
-            <div className="absolute inset-0 bg-gradient-radial from-green-400/20 via-green-500/10 to-green-600/5" />
+          {/* Clean Battle Arena */}
+          <div className="flex-1 relative bg-gradient-to-b from-sky-200 via-green-200 to-yellow-200 overflow-hidden">
+            {/* Arena Background */}
+            <div className="absolute inset-0 bg-gradient-radial from-green-300/30 via-green-400/20 to-green-500/10" />
             
-            {/* Path Indicators */}
-            <div className="absolute inset-4">
+            {/* Clean Path Indicators */}
+            <div className="absolute inset-6">
               {(['left', 'center', 'right'] as const).map(path => {
                 const pathConfig = PATH_CONFIGS[path];
                 return (
                   <div
                     key={path}
-                    className={`absolute w-24 h-full border-2 border-dashed rounded-lg ${getPathColor(path)} opacity-40`}
+                    className={`absolute h-full border-2 border-dashed rounded-lg ${getPathColor(path)} opacity-50`}
                     style={{
-                      left: `${pathConfig.startX - 50}px`,
-                      width: '100px'
+                      left: `${pathConfig.startX - 60}px`,
+                      width: '120px'
                     }}
                   />
                 );
               })}
               
-              {/* Enemy Castle */}
-              <div className="absolute top-8 left-1/2 transform -translate-x-1/2">
-                <div className="w-32 h-24 bg-gradient-to-b from-red-700 to-red-900 rounded-lg shadow-2xl border-4 border-red-800 flex items-center justify-center transform perspective-1000 rotateX-12">
-                  <span className="text-white text-3xl">🏰</span>
-                </div>
-                <div className="w-40 h-4 bg-gray-300 rounded-full mt-2 shadow-inner">
-                  <div 
-                    className="h-full bg-gradient-to-r from-red-500 to-red-600 rounded-full transition-all duration-300"
-                    style={{ width: `${enemyCastle ? (enemyCastle.health / enemyCastle.maxHealth) * 100 : 0}%` }}
-                  />
-                </div>
-                <div className="text-xs text-center font-bold mt-1">
-                  DÜŞMAN KALESİ {enemyCastle?.health}/{enemyCastle?.maxHealth}
+              {/* Enemy Castle - Clean Design */}
+              <div className="absolute top-6 left-1/2 transform -translate-x-1/2">
+                <div className="flex flex-col items-center">
+                  <div className="w-28 h-20 bg-gradient-to-b from-red-600 to-red-800 rounded-lg shadow-xl border-2 border-red-700 flex items-center justify-center">
+                    <span className="text-white text-2xl">🏰</span>
+                  </div>
+                  <div className="w-32 h-3 bg-gray-300 rounded-full mt-2 shadow-inner">
+                    <div 
+                      className="h-full bg-gradient-to-r from-red-400 to-red-600 rounded-full transition-all duration-500"
+                      style={{ width: `${enemyCastle ? (enemyCastle.health / enemyCastle.maxHealth) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-center font-bold mt-1 text-red-800">
+                    DÜŞMAN KALESİ
+                  </div>
+                  <div className="text-xs text-center text-gray-600">
+                    {enemyCastle?.health}/{enemyCastle?.maxHealth}
+                  </div>
                 </div>
               </div>
 
-              {/* Enemy Defense Towers */}
+              {/* Enemy Defense Towers - Clean Design */}
               {towers
                 .filter(tower => tower.team === 'enemy' && tower.health > 0)
                 .map(tower => (
@@ -623,38 +631,45 @@ export const BattleField = () => {
                       top: `${tower.position.y}px`
                     }}
                   >
-                    <div className="w-20 h-20 bg-gradient-to-b from-red-600 to-red-800 rounded-full shadow-xl border-3 border-red-700 flex items-center justify-center transform scale-110">
-                      <span className="text-white text-xl">🗼</span>
-                    </div>
-                    <div className="w-24 h-3 bg-gray-300 rounded-full mt-1">
-                      <div 
-                        className="h-full bg-red-500 rounded-full"
-                        style={{ width: `${(tower.health / tower.maxHealth) * 100}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-center font-bold">
-                      {tower.side === 'left' ? 'SOL' : 'SAĞ'} KULE
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 bg-gradient-to-b from-red-500 to-red-700 rounded-full shadow-lg border border-red-600 flex items-center justify-center">
+                        <span className="text-white text-sm">🗼</span>
+                      </div>
+                      <div className="w-20 h-2 bg-gray-300 rounded-full mt-1">
+                        <div 
+                          className="h-full bg-red-500 rounded-full transition-all duration-300"
+                          style={{ width: `${(tower.health / tower.maxHealth) * 100}%` }}
+                        />
+                      </div>
+                      <div className="text-xs text-center font-semibold text-red-700">
+                        {tower.side === 'left' ? 'SOL' : 'SAĞ'}
+                      </div>
                     </div>
                   </div>
                 ))}
 
-              {/* Player Castle */}
-              <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2">
-                <div className="w-32 h-24 bg-gradient-to-b from-blue-700 to-blue-900 rounded-lg shadow-2xl border-4 border-blue-800 flex items-center justify-center transform perspective-1000 rotateX-12">
-                  <span className="text-white text-3xl">🏰</span>
-                </div>
-                <div className="w-40 h-4 bg-gray-300 rounded-full mt-2 shadow-inner">
-                  <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300"
-                    style={{ width: `${playerCastle ? (playerCastle.health / playerCastle.maxHealth) * 100 : 0}%` }}
-                  />
-                </div>
-                <div className="text-xs text-center font-bold mt-1">
-                  SENİN KALEN {playerCastle?.health}/{playerCastle?.maxHealth}
+              {/* Player Castle - Clean Design */}
+              <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
+                <div className="flex flex-col items-center">
+                  <div className="text-xs text-center font-bold mb-1 text-blue-800">
+                    SENİN KALEN
+                  </div>
+                  <div className="text-xs text-center text-gray-600 mb-2">
+                    {playerCastle?.health}/{playerCastle?.maxHealth}
+                  </div>
+                  <div className="w-32 h-3 bg-gray-300 rounded-full mb-2 shadow-inner">
+                    <div 
+                      className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-500"
+                      style={{ width: `${playerCastle ? (playerCastle.health / playerCastle.maxHealth) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <div className="w-28 h-20 bg-gradient-to-b from-blue-600 to-blue-800 rounded-lg shadow-xl border-2 border-blue-700 flex items-center justify-center">
+                    <span className="text-white text-2xl">🏰</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Player Defense Towers */}
+              {/* Player Defense Towers - Clean Design */}
               {towers
                 .filter(tower => tower.team === 'player' && tower.health > 0)
                 .map(tower => (
@@ -666,26 +681,28 @@ export const BattleField = () => {
                       top: `${tower.position.y}px`
                     }}
                   >
-                    <div className="w-20 h-20 bg-gradient-to-b from-blue-600 to-blue-800 rounded-full shadow-xl border-3 border-blue-700 flex items-center justify-center transform scale-110">
-                      <span className="text-white text-xl">🗼</span>
-                    </div>
-                    <div className="w-24 h-3 bg-gray-300 rounded-full mt-1">
-                      <div 
-                        className="h-full bg-blue-500 rounded-full"
-                        style={{ width: `${(tower.health / tower.maxHealth) * 100}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-center font-bold">
-                      {tower.side === 'left' ? 'SOL' : 'SAĞ'} KULE
+                    <div className="flex flex-col items-center">
+                      <div className="text-xs text-center font-semibold text-blue-700 mb-1">
+                        {tower.side === 'left' ? 'SOL' : 'SAĞ'}
+                      </div>
+                      <div className="w-16 h-16 bg-gradient-to-b from-blue-500 to-blue-700 rounded-full shadow-lg border border-blue-600 flex items-center justify-center">
+                        <span className="text-white text-sm">🗼</span>
+                      </div>
+                      <div className="w-20 h-2 bg-gray-300 rounded-full mt-1">
+                        <div 
+                          className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                          style={{ width: `${(tower.health / tower.maxHealth) * 100}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
 
-              {/* Units with enhanced 3D styling */}
+              {/* Clean Units with Better Styling */}
               {units.map(unit => (
                 <div
                   key={unit.id}
-                  className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200`}
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200"
                   style={{
                     left: `${unit.position.x}px`,
                     top: `${unit.position.y}px`,
@@ -693,34 +710,47 @@ export const BattleField = () => {
                   }}
                 >
                   <div className={getUnitBoundaryStyle(unit)}>
-                    <div className="text-2xl text-center mb-1">
+                    <div className="text-xl text-center mb-1">
                       {UNIT_CONFIGS[unit.type].icon}
                     </div>
-                    <div className="w-12 h-2 bg-gray-400 rounded-full">
+                    <div className="w-10 h-1.5 bg-gray-400 rounded-full">
                       <div 
                         className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-200"
                         style={{ width: `${(unit.health / unit.maxHealth) * 100}%` }}
                       />
                     </div>
                     {unit.isAttackingBuilding && (
-                      <div className="text-xs text-center text-red-600 font-bold mt-1">⚔️ SALDIRI</div>
+                      <div className="text-xs text-center text-red-600 font-bold mt-1">⚔️</div>
                     )}
                     {unit.isInCombat && (
-                      <div className="text-xs text-center text-orange-600 font-bold mt-1">💥 SAVAŞ</div>
+                      <div className="text-xs text-center text-orange-600 font-bold mt-1">💥</div>
                     )}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Battle Statistics */}
-            <div className="absolute bottom-4 left-4 bg-black/80 text-white p-3 rounded-lg text-sm shadow-xl">
-              <div className="font-bold mb-2">📊 Savaş İstatistikleri</div>
-              <div>⚔️ Aktif Askerler: {units.length}</div>
-              <div>🏰 Ayakta Kalan Kuleler: {towers.filter(t => t.health > 0).length}/4</div>
-              <div>💥 Savaşta Olan: {units.filter(u => u.isInCombat || u.isAttackingBuilding).length}</div>
-              <div>🎯 Oyuncu Askerleri: {units.filter(u => u.team === 'player').length}</div>
-              <div>👹 Düşman Askerleri: {units.filter(u => u.team === 'enemy').length}</div>
+            {/* Clean Statistics Panel */}
+            <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm border rounded-lg p-3 text-sm shadow-lg">
+              <div className="font-bold mb-2 text-gray-800">📊 İstatistikler</div>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span>Aktif Askerler:</span>
+                  <span className="font-semibold">{units.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Kuleler:</span>
+                  <span className="font-semibold">{towers.filter(t => t.health > 0).length}/4</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Mavi Takım:</span>
+                  <span className="font-semibold text-blue-600">{units.filter(u => u.team === 'player').length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Kırmızı Takım:</span>
+                  <span className="font-semibold text-red-600">{units.filter(u => u.team === 'enemy').length}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
