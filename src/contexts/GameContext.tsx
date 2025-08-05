@@ -68,17 +68,6 @@ export interface BattleState {
   maxEnemyHealth: number;
 }
 
-export interface CastleBuilding {
-  id: string;
-  type: 'mine' | 'farm' | 'lumber_mill' | 'quarry' | 'forge';
-  level: number;
-  position: { x: number; y: number };
-  isBuilding: boolean;
-  buildStartTime?: number;
-  isUpgrading: boolean;
-  upgradeStartTime?: number;
-}
-
 export interface GameState {
   resources: Resources;
   productionRate: number;
@@ -89,17 +78,15 @@ export interface GameState {
   selectedTile: HexTile | null;
   lastUpdate: number;
   battleState: BattleState;
-  castleBuildings: CastleBuilding[];
-  isCastleInteriorOpen: boolean;
 }
 
 const initialState: GameState = {
   resources: {
-    wood: 1000000,
-    gold: 1000000,
-    iron: 1000000,
-    wheat: 1000000,
-    stone: 1000000
+    wood: 5000,
+    gold: 5000,
+    iron: 5000,
+    wheat: 5000,
+    stone: 5000
   },
   productionRate: 1500,
   isRestructuringMode: false,
@@ -116,9 +103,7 @@ const initialState: GameState = {
     maxMana: 10,
     enemyHealth: 0,
     maxEnemyHealth: 0
-  },
-  castleBuildings: [],
-  isCastleInteriorOpen: false
+  }
 };
 
 type GameAction = 
@@ -134,13 +119,7 @@ type GameAction =
   | { type: 'DEPLOY_UNIT'; payload: { unitType: string; x: number; y: number } }
   | { type: 'UPDATE_BATTLE_UNITS'; payload: BattleUnit[] }
   | { type: 'UPDATE_MANA'; payload: number }
-  | { type: 'UPDATE_ENEMY_HEALTH'; payload: number }
-  | { type: 'OPEN_CASTLE_INTERIOR' }
-  | { type: 'CLOSE_CASTLE_INTERIOR' }
-  | { type: 'ADD_CASTLE_BUILDING'; payload: CastleBuilding }
-  | { type: 'UPDATE_CASTLE_BUILDING'; payload: { id: string; updates: Partial<CastleBuilding> } }
-  | { type: 'COMPLETE_BUILDING_CONSTRUCTION'; payload: string }
-  | { type: 'COMPLETE_BUILDING_UPGRADE'; payload: string };
+  | { type: 'UPDATE_ENEMY_HEALTH'; payload: number };
 
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -157,29 +136,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       
       const baseProduction = state.productionRate * hoursPassed * productionMultiplier;
       
-      // Add building bonuses
-      const buildingBonuses = state.castleBuildings.reduce((acc, building) => {
-        if (building.isBuilding || building.isUpgrading) return acc;
-        
-        const bonus = building.level * 100;
-        switch (building.type) {
-          case 'lumber_mill': acc.wood += bonus; break;
-          case 'mine': acc.gold += bonus; break;
-          case 'forge': acc.iron += bonus; break;
-          case 'farm': acc.wheat += bonus; break;
-          case 'quarry': acc.stone += bonus; break;
-        }
-        return acc;
-      }, { wood: 0, gold: 0, iron: 0, wheat: 0, stone: 0 });
-      
       return {
         ...state,
         resources: {
-          wood: Math.min(36000, state.resources.wood + baseProduction + buildingBonuses.wood),
-          gold: Math.min(36000, state.resources.gold + baseProduction + buildingBonuses.gold),
-          iron: Math.min(36000, state.resources.iron + baseProduction + buildingBonuses.iron),
-          wheat: Math.min(36000, state.resources.wheat + baseProduction + buildingBonuses.wheat),
-          stone: Math.min(36000, state.resources.stone + baseProduction + buildingBonuses.stone)
+          wood: Math.min(36000, state.resources.wood + baseProduction),
+          gold: Math.min(36000, state.resources.gold + baseProduction),
+          iron: Math.min(36000, state.resources.iron + baseProduction),
+          wheat: Math.min(36000, state.resources.wheat + baseProduction),
+          stone: Math.min(36000, state.resources.stone + baseProduction)
         },
         lastUpdate: now
       };
@@ -204,52 +168,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SELECT_TILE':
       return { ...state, selectedTile: action.payload };
     
-    case 'OPEN_CASTLE_INTERIOR':
-      return { ...state, isCastleInteriorOpen: true };
-    
-    case 'CLOSE_CASTLE_INTERIOR':
-      return { ...state, isCastleInteriorOpen: false };
-    
-    case 'ADD_CASTLE_BUILDING':
-      return {
-        ...state,
-        castleBuildings: [...state.castleBuildings, action.payload]
-      };
-    
-    case 'UPDATE_CASTLE_BUILDING':
-      return {
-        ...state,
-        castleBuildings: state.castleBuildings.map(building =>
-          building.id === action.payload.id
-            ? { ...building, ...action.payload.updates }
-            : building
-        )
-      };
-    
-    case 'COMPLETE_BUILDING_CONSTRUCTION':
-      return {
-        ...state,
-        castleBuildings: state.castleBuildings.map(building =>
-          building.id === action.payload
-            ? { ...building, isBuilding: false, buildStartTime: undefined }
-            : building
-        )
-      };
-    
-    case 'COMPLETE_BUILDING_UPGRADE':
-      return {
-        ...state,
-        castleBuildings: state.castleBuildings.map(building =>
-          building.id === action.payload
-            ? { ...building, isUpgrading: false, upgradeStartTime: undefined }
-            : building
-        )
-      };
-    
     case 'START_BATTLE':
       const enemyHealth = action.payload.battleType === 'resource' 
         ? action.payload.resourceRegion?.boss_health || 1000
-        : 5000;
+        : 5000; // Kale canı
       
       return {
         ...state,
