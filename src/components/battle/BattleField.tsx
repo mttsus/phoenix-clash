@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -15,19 +14,44 @@ interface Castle {
   position: { x: number; y: number };
 }
 
+interface Tower {
+  id: string;
+  team: 'player' | 'enemy';
+  lane: number;
+  health: number;
+  maxHealth: number;
+  position: { x: number; y: number };
+  lastAttack: number;
+}
+
 interface Unit {
   id: string;
   type: 'swordsman' | 'archer' | 'cavalry' | 'mage_fire';
   team: 'player' | 'enemy';
-  lane: number; // 0: top, 1: middle, 2: bottom
+  lane: number;
   position: { x: number; y: number };
   health: number;
   maxHealth: number;
   damage: number;
   speed: number;
-  target?: Unit;
+  target?: Unit | Tower | Castle;
   isMoving: boolean;
   lastAttack: number;
+}
+
+interface Catapult {
+  id: string;
+  team: 'player' | 'enemy';
+  lane: number;
+  position: { x: number; y: number };
+  health: number;
+  maxHealth: number;
+  damage: number;
+  speed: number;
+  target?: Tower | Castle;
+  isMoving: boolean;
+  lastAttack: number;
+  lastShot: number;
 }
 
 const UNIT_CONFIGS = {
@@ -37,17 +61,60 @@ const UNIT_CONFIGS = {
   mage_fire: { icon: '🔥', health: 70, damage: 60, speed: 45, cost: 5 }
 };
 
+const CATAPULT_CONFIG = {
+  icon: '🎯',
+  health: 1,
+  maxHealth: 1,
+  damage: 100,
+  speed: 30,
+  attackRange: 150,
+  attackCooldown: 3,
+  spawnInterval: 21
+};
+
 export const BattleField = () => {
   const { state, dispatch } = useGame();
   const [battleActive, setBattleActive] = useState(false);
   const [mana, setMana] = useState(10);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [catapults, setCatapults] = useState<Catapult[]>([]);
+  const [towers, setTowers] = useState<Tower[]>([]);
   const [castles, setCastles] = useState<Castle[]>([]);
   const [battleTime, setBattleTime] = useState(0);
   const [gameResult, setGameResult] = useState<'win' | 'lose' | null>(null);
+  const [lastCatapultSpawn, setLastCatapultSpawn] = useState({ player: 0, enemy: 0 });
 
-  // Initialize castles
+  // Initialize towers and castles
   useEffect(() => {
+    // Initialize towers (3 per lane, 9 total for each team)
+    const initialTowers: Tower[] = [];
+    for (let lane = 0; lane < 3; lane++) {
+      for (let position = 0; position < 3; position++) {
+        // Player towers
+        initialTowers.push({
+          id: `player-tower-${lane}-${position}`,
+          team: 'player',
+          lane,
+          health: 1000,
+          maxHealth: 1000,
+          position: { x: 200 + position * 150, y: 150 + lane * 150 },
+          lastAttack: 0
+        });
+        
+        // Enemy towers
+        initialTowers.push({
+          id: `enemy-tower-${lane}-${position}`,
+          team: 'enemy',
+          lane,
+          health: 1000,
+          maxHealth: 1000,
+          position: { x: 650 - position * 150, y: 150 + lane * 150 },
+          lastAttack: 0
+        });
+      }
+    }
+    setTowers(initialTowers);
+
     setCastles([
       {
         id: 'player-castle',
@@ -66,7 +133,7 @@ export const BattleField = () => {
     ]);
   }, []);
 
-  // Battle loop
+  // Main battle loop
   useEffect(() => {
     if (!battleActive || gameResult) return;
 
@@ -78,25 +145,223 @@ export const BattleField = () => {
         setMana(prev => Math.min(10, prev + 1));
       }
 
-      // Move units and handle combat
+      // Spawn catapults automatically every 21 seconds
+      spawnCatapults();
+
+      // Move units and catapults
       moveAndFightUnits();
+      moveAndAttackCatapults();
       
       // Spawn enemy units occasionally
       if (battleTime % 8 === 0) {
         spawnEnemyUnit();
       }
       
+      // Tower attacks
+      handleTowerAttacks();
+      
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [battleActive, battleTime, mana, units, gameResult]);
+  }, [battleActive, battleTime, mana, units, catapults, towers, castles, gameResult, lastCatapultSpawn]);
+
+  const spawnCatapults = () => {
+    // Spawn player catapults
+    if (battleTime - lastCatapultSpawn.player >= CATAPULT_CONFIG.spawnInterval) {
+      for (let lane = 0; lane < 3; lane++) {
+        const newCatapult: Catapult = {
+          id: `player-catapult-${Date.now()}-${lane}`,
+          team: 'player',
+          lane,
+          position: { x: 100, y: 150 + lane * 150 },
+          health: CATAPULT_CONFIG.health,
+          maxHealth: CATAPULT_CONFIG.maxHealth,
+          damage: CATAPULT_CONFIG.damage,
+          speed: CATAPULT_CONFIG.speed,
+          isMoving: true,
+          lastAttack: 0,
+          lastShot: 0
+        };
+        setCatapults(prev => [...prev, newCatapult]);
+      }
+      setLastCatapultSpawn(prev => ({ ...prev, player: battleTime }));
+    }
+
+    // Spawn enemy catapults
+    if (battleTime - lastCatapultSpawn.enemy >= CATAPULT_CONFIG.spawnInterval) {
+      for (let lane = 0; lane < 3; lane++) {
+        const newCatapult: Catapult = {
+          id: `enemy-catapult-${Date.now()}-${lane}`,
+          team: 'enemy',
+          lane,
+          position: { x: 900, y: 150 + lane * 150 },
+          health: CATAPULT_CONFIG.health,
+          maxHealth: CATAPULT_CONFIG.maxHealth,
+          damage: CATAPULT_CONFIG.damage,
+          speed: CATAPULT_CONFIG.speed,
+          isMoving: true,
+          lastAttack: 0,
+          lastShot: 0
+        };
+        setCatapults(prev => [...prev, newCatapult]);
+      }
+      setLastCatapultSpawn(prev => ({ ...prev, enemy: battleTime }));
+    }
+  };
+
+  const moveAndAttackCatapults = () => {
+    setCatapults(prevCatapults => {
+      return prevCatapults.map(catapult => {
+        if (catapult.health <= 0) return catapult;
+
+        // Find target towers or castles in range
+        const targets = [
+          ...towers.filter(t => 
+            t.team !== catapult.team && 
+            t.health > 0 && 
+            t.lane === catapult.lane &&
+            Math.abs(t.position.x - catapult.position.x) <= CATAPULT_CONFIG.attackRange
+          ),
+          ...castles.filter(c => 
+            c.team !== catapult.team && 
+            c.health > 0 &&
+            Math.abs(c.position.x - catapult.position.x) <= CATAPULT_CONFIG.attackRange
+          )
+        ];
+
+        if (targets.length > 0) {
+          const nearestTarget = targets.reduce((closest, target) => {
+            const distToTarget = Math.abs(target.position.x - catapult.position.x);
+            const distToClosest = Math.abs(closest.position.x - catapult.position.x);
+            return distToTarget < distToClosest ? target : closest;
+          });
+
+          // Attack if cooldown is ready
+          if (battleTime - catapult.lastShot >= CATAPULT_CONFIG.attackCooldown) {
+            // Attack the target
+            if ('lane' in nearestTarget) {
+              // It's a tower
+              setTowers(prevTowers => prevTowers.map(tower => {
+                if (tower.id === nearestTarget.id) {
+                  return { ...tower, health: Math.max(0, tower.health - CATAPULT_CONFIG.damage) };
+                }
+                return tower;
+              }));
+            } else {
+              // It's a castle
+              setCastles(prevCastles => prevCastles.map(castle => {
+                if (castle.id === nearestTarget.id) {
+                  return { ...castle, health: Math.max(0, castle.health - CATAPULT_CONFIG.damage) };
+                }
+                return castle;
+              }));
+            }
+            
+            return { ...catapult, lastShot: battleTime, isMoving: false };
+          }
+          return { ...catapult, isMoving: false };
+        }
+
+        // No targets in range, move forward
+        if (catapult.isMoving) {
+          const direction = catapult.team === 'player' ? 1 : -1;
+          const newX = catapult.position.x + (catapult.speed / 10) * direction;
+          
+          return { ...catapult, position: { ...catapult.position, x: newX } };
+        }
+
+        return catapult;
+      }).filter(catapult => catapult.health > 0);
+    });
+  };
+
+  const handleTowerAttacks = () => {
+    towers.forEach(tower => {
+      if (tower.health <= 0 || battleTime - tower.lastAttack < 2) return;
+
+      // Find enemy units in range (AoE attack)
+      const enemyUnitsInRange = units.filter(unit => 
+        unit.team !== tower.team &&
+        unit.lane === tower.lane &&
+        unit.health > 0 &&
+        Math.abs(unit.position.x - tower.position.x) <= 200
+      );
+
+      if (enemyUnitsInRange.length > 0) {
+        // AoE attack - can kill 100-200 units
+        const unitsToKill = Math.min(enemyUnitsInRange.length, Math.floor(Math.random() * 101) + 100);
+        const unitsToKillIds = enemyUnitsInRange.slice(0, unitsToKill).map(u => u.id);
+        
+        setUnits(prevUnits => 
+          prevUnits.filter(unit => !unitsToKillIds.includes(unit.id))
+        );
+
+        setTowers(prevTowers => 
+          prevTowers.map(t => 
+            t.id === tower.id ? { ...t, lastAttack: battleTime } : t
+          )
+        );
+      }
+
+      // Attack catapults (one shot kill)
+      const enemyCatapultsInRange = catapults.filter(catapult => 
+        catapult.team !== tower.team &&
+        catapult.lane === tower.lane &&
+        catapult.health > 0 &&
+        Math.abs(catapult.position.x - tower.position.x) <= 200
+      );
+
+      if (enemyCatapultsInRange.length > 0) {
+        const catapultToKillId = enemyCatapultsInRange[0].id;
+        setCatapults(prevCatapults => 
+          prevCatapults.filter(catapult => catapult.id !== catapultToKillId)
+        );
+
+        setTowers(prevTowers => 
+          prevTowers.map(t => 
+            t.id === tower.id ? { ...t, lastAttack: battleTime } : t
+          )
+        );
+      }
+    });
+  };
 
   const startBattle = () => {
     setBattleActive(true);
     setBattleTime(0);
     setMana(10);
     setUnits([]);
+    setCatapults([]);
     setGameResult(null);
+    setLastCatapultSpawn({ player: 0, enemy: 0 });
+    
+    // Reset towers
+    const initialTowers: Tower[] = [];
+    for (let lane = 0; lane < 3; lane++) {
+      for (let position = 0; position < 3; position++) {
+        initialTowers.push({
+          id: `player-tower-${lane}-${position}`,
+          team: 'player',
+          lane,
+          health: 1000,
+          maxHealth: 1000,
+          position: { x: 200 + position * 150, y: 150 + lane * 150 },
+          lastAttack: 0
+        });
+        
+        initialTowers.push({
+          id: `enemy-tower-${lane}-${position}`,
+          team: 'enemy',
+          lane,
+          health: 1000,
+          maxHealth: 1000,
+          position: { x: 650 - position * 150, y: 150 + lane * 150 },
+          lastAttack: 0
+        });
+      }
+    }
+    setTowers(initialTowers);
+
     setCastles([
       {
         id: 'player-castle',
@@ -130,7 +395,7 @@ export const BattleField = () => {
       type: unitType,
       team: 'player',
       lane,
-      position: { x: 100, y: 150 + lane * 150 }, // Starting position based on lane
+      position: { x: 100, y: 150 + lane * 150 },
       health: config.health,
       maxHealth: config.health,
       damage: config.damage,
@@ -180,7 +445,6 @@ export const BattleField = () => {
         );
 
         if (enemies.length > 0) {
-          // Fight nearest enemy
           const nearestEnemy = enemies.reduce((closest, enemy) => {
             const distToEnemy = Math.abs(enemy.position.x - unit.position.x);
             const distToClosest = Math.abs(closest.position.x - unit.position.x);
@@ -190,9 +454,7 @@ export const BattleField = () => {
           const distance = Math.abs(nearestEnemy.position.x - unit.position.x);
           
           if (distance < 80) {
-            // Attack if close enough and cooldown is ready
             if (battleTime - unit.lastAttack >= 1) {
-              // This unit will attack the enemy (handled in next iteration)
               return { ...unit, target: nearestEnemy, isMoving: false, lastAttack: battleTime };
             }
             return { ...unit, isMoving: false };
@@ -207,7 +469,6 @@ export const BattleField = () => {
           // Check if reached enemy castle
           const enemyCastle = castles.find(c => c.team !== unit.team);
           if (enemyCastle && Math.abs(newX - enemyCastle.position.x) < 100) {
-            // Attack castle
             if (battleTime - unit.lastAttack >= 1) {
               setCastles(prev => prev.map(castle => {
                 if (castle.team !== unit.team) {
@@ -229,7 +490,6 @@ export const BattleField = () => {
       // Handle combat damage
       const finalUnits = updatedUnits.map(unit => {
         if (unit.target && unit.lastAttack === battleTime) {
-          // Find the target and damage it
           const targetIndex = updatedUnits.findIndex(u => u.id === unit.target?.id);
           if (targetIndex !== -1) {
             updatedUnits[targetIndex] = {
@@ -242,7 +502,6 @@ export const BattleField = () => {
         return unit;
       });
 
-      // Remove dead units
       return finalUnits.filter(unit => unit.health > 0);
     });
 
@@ -283,7 +542,7 @@ export const BattleField = () => {
         {/* Header */}
         <div className="p-4 border-b flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-bold">Savaş Alanı - Clash Royale Tarzı</h2>
+            <h2 className="text-xl font-bold">Savaş Alanı - 3 Şeritli Kale Savunması</h2>
             <p className="text-sm text-gray-600">
               Süre: {Math.floor(battleTime / 60)}:{String(battleTime % 60).padStart(2, '0')}
               {gameResult && (
@@ -295,6 +554,7 @@ export const BattleField = () => {
           </div>
           <div className="flex items-center gap-4">
             <Badge variant="secondary">Mana: {mana}/10</Badge>
+            <Badge variant="outline">Mancınıklar: {catapults.length}</Badge>
             <Button onClick={endBattle} variant="outline" size="sm">
               <X className="w-4 h-4" />
             </Button>
@@ -327,6 +587,29 @@ export const BattleField = () => {
               </CardContent>
             </Card>
 
+            {/* Mancınık Bilgisi */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Mancınık Sistemi</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-xs">
+                  <p>• Her 21 saniyede otomatik spawn</p>
+                  <p>• 3 saniyede bir atış (100 hasar)</p>
+                  <p>• Kulelere ve kalelere odaklanır</p>
+                  <p>• Tek vuruşla yok edilebilir</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span>Oyuncu: {catapults.filter(c => c.team === 'player').length}</span>
+                  </div>
+                  <div>
+                    <span>Düşman: {catapults.filter(c => c.team === 'enemy').length}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Unit Deployment */}
             <Card>
               <CardHeader>
@@ -336,7 +619,7 @@ export const BattleField = () => {
                 {[0, 1, 2].map(lane => (
                   <div key={lane} className="space-y-2">
                     <div className="text-xs font-medium">
-                      {lane === 0 ? 'Üst Yol' : lane === 1 ? 'Orta Yol' : 'Alt Yol'}
+                      {lane === 0 ? 'Üst Şerit' : lane === 1 ? 'Orta Şerit' : 'Alt Şerit'}
                     </div>
                     <div className="grid grid-cols-2 gap-1">
                       {Object.entries(UNIT_CONFIGS).map(([unitType, config]) => (
@@ -376,7 +659,7 @@ export const BattleField = () => {
               {[0, 1, 2].map(lane => (
                 <div key={lane} className={`relative border-2 rounded ${getLaneColor(lane)} overflow-hidden`}>
                   <div className="absolute left-2 top-2 text-xs font-bold">
-                    {lane === 0 ? 'ÜST YOL' : lane === 1 ? 'ORTA YOL' : 'ALT YOL'}
+                    {lane === 0 ? 'ÜST ŞERİT' : lane === 1 ? 'ORTA ŞERİT' : 'ALT ŞERİT'}
                   </div>
                   
                   {/* Player Castle */}
@@ -389,6 +672,27 @@ export const BattleField = () => {
                     </div>
                   </div>
 
+                  {/* Player Towers */}
+                  {towers
+                    .filter(tower => tower.team === 'player' && tower.lane === lane && tower.health > 0)
+                    .map(tower => (
+                      <div
+                        key={tower.id}
+                        className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          left: `${(tower.position.x / 1000) * 100}%`,
+                          top: '50%'
+                        }}
+                      >
+                        <div className="w-8 h-8 bg-blue-500 rounded flex items-center justify-center">
+                          <span className="text-white text-sm">🗼</span>
+                        </div>
+                        <div className="text-xs text-center">
+                          {Math.round((tower.health / tower.maxHealth) * 100)}%
+                        </div>
+                      </div>
+                    ))}
+
                   {/* Enemy Castle */}
                   <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
                     <div className="w-16 h-12 bg-red-600 rounded flex items-center justify-center">
@@ -398,6 +702,27 @@ export const BattleField = () => {
                       {Math.round(((enemyCastle?.health || 0) / 2500) * 100)}%
                     </div>
                   </div>
+
+                  {/* Enemy Towers */}
+                  {towers
+                    .filter(tower => tower.team === 'enemy' && tower.lane === lane && tower.health > 0)
+                    .map(tower => (
+                      <div
+                        key={tower.id}
+                        className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          left: `${(tower.position.x / 1000) * 100}%`,
+                          top: '50%'
+                        }}
+                      >
+                        <div className="w-8 h-8 bg-red-500 rounded flex items-center justify-center">
+                          <span className="text-white text-sm">🗼</span>
+                        </div>
+                        <div className="text-xs text-center">
+                          {Math.round((tower.health / tower.maxHealth) * 100)}%
+                        </div>
+                      </div>
+                    ))}
 
                   {/* Units in this lane */}
                   {units
@@ -424,6 +749,29 @@ export const BattleField = () => {
                         </div>
                       </div>
                     ))}
+
+                  {/* Catapults in this lane */}
+                  {catapults
+                    .filter(catapult => catapult.lane === lane)
+                    .map(catapult => (
+                      <div
+                        key={catapult.id}
+                        className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-1000 ${
+                          catapult.team === 'player' ? 'text-blue-800' : 'text-red-800'
+                        }`}
+                        style={{
+                          left: `${(catapult.position.x / 1000) * 100}%`,
+                          top: '50%'
+                        }}
+                      >
+                        <div className="text-lg">
+                          {CATAPULT_CONFIG.icon}
+                        </div>
+                        <div className="text-xs text-center">
+                          {battleTime - catapult.lastShot < CATAPULT_CONFIG.attackCooldown ? '⏳' : '🎯'}
+                        </div>
+                      </div>
+                    ))}
                 </div>
               ))}
             </div>
@@ -431,8 +779,8 @@ export const BattleField = () => {
             {/* Battle Statistics */}
             <div className="absolute bottom-4 left-4 bg-black/70 text-white p-2 rounded text-xs">
               <div>Aktif Birimler: {units.length}</div>
-              <div>Oyuncu Birimleri: {units.filter(u => u.team === 'player').length}</div>
-              <div>Düşman Birimleri: {units.filter(u => u.team === 'enemy').length}</div>
+              <div>Aktif Mancınıklar: {catapults.length}</div>
+              <div>Aktif Kuleler: {towers.filter(t => t.health > 0).length}</div>
             </div>
           </div>
         </div>
