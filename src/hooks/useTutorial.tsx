@@ -47,7 +47,17 @@ export const useTutorial = () => {
         return;
       }
 
-      setTutorialProgress(data);
+      // Convert the data to match our interface
+      const tutorialData: TutorialProgress = {
+        current_step: data.current_step,
+        tutorial_completed: data.tutorial_completed || false,
+        step_data: typeof data.step_data === 'object' && data.step_data !== null 
+          ? data.step_data as Record<string, any>
+          : {},
+        completed_steps: data.completed_steps || []
+      };
+
+      setTutorialProgress(tutorialData);
     } catch (error) {
       console.error('Tutorial progress yüklenemedi:', error);
     } finally {
