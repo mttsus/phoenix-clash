@@ -185,7 +185,15 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
   );
 };
 
-export const HexGrid = () => {
+export const HexGrid = ({ 
+  onCastleMoved, 
+  onCastleClicked, 
+  onBattleStarted 
+}: {
+  onCastleMoved?: () => void;
+  onCastleClicked?: () => void;
+  onBattleStarted?: () => void;
+} = {}) => {
   const { state, dispatch } = useGame();
   const { user } = useAuth();
   const [tiles, setTiles] = useState<Array<{q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}>>([]);
@@ -375,6 +383,7 @@ export const HexGrid = () => {
     // Kendi kalene tıklama - Kale içi ekranını aç
     if (playerOnTile && playerOnTile.user_id === user?.id) {
       setIsCastleInteriorOpen(true);
+      onCastleClicked?.(); // Tutorial event
       return;
     }
     
@@ -388,6 +397,7 @@ export const HexGrid = () => {
       const shouldAttack = confirm(`${playerOnTile.username} kalesine saldırmak istiyor musunuz?`);
       if (shouldAttack) {
         startBattle(playerOnTile);
+        onBattleStarted?.(); // Tutorial event
         return;
       }
     }
@@ -397,7 +407,10 @@ export const HexGrid = () => {
       const shouldMove = confirm(`Kalenizi (${tile.q}, ${tile.r}) konumuna taşımak istiyor musunuz?`);
       
       if (shouldMove) {
-        await moveCastle(tile);
+        const moved = await moveCastle(tile);
+        if (moved) {
+          onCastleMoved?.(); // Tutorial event
+        }
       }
     }
 
@@ -447,7 +460,7 @@ export const HexGrid = () => {
   };
 
   const moveCastle = async (tile: {q: number, r: number, s: number}) => {
-    if (!user || isMoving) return;
+    if (!user || isMoving) return false;
 
     console.log('Moving castle to:', tile);
     setIsMoving(true);
@@ -464,7 +477,7 @@ export const HexGrid = () => {
         console.error('Kale taşıma hatası:', error);
         toast.error('Kale taşınamadı: ' + error.message);
         setIsMoving(false);
-        return;
+        return false;
       }
 
       console.log('Castle moved successfully', data);
@@ -477,10 +490,12 @@ export const HexGrid = () => {
         toast.success(`Kale başarıyla (${tile.q}, ${tile.r}) konumuna taşındı!`);
       }, 500);
       
+      return true;
     } catch (err) {
       console.error('Beklenmeyen hata:', err);
       toast.error('Beklenmeyen bir hata oluştu');
       setIsMoving(false);
+      return false;
     }
   };
 
