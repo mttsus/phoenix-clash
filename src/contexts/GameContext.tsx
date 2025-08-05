@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useReducer, ReactNode } from 'react';
 
 export interface Resources {
@@ -113,6 +112,7 @@ type GameAction =
   | { type: 'PRODUCE_RESOURCES' }
   | { type: 'CREATE_ARMY_UNIT'; payload: ArmyUnit }
   | { type: 'SELECT_TILE'; payload: HexTile | null }
+  | { type: 'SET_HEX_TILES'; payload: HexTile[] }
   | { type: 'BATTLE_RESULT'; payload: { won: boolean } }
   | { type: 'ENTER_RESTRUCTURING_MODE' }
   | { type: 'EXIT_RESTRUCTURING_MODE' }
@@ -175,6 +175,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     
     case 'SELECT_TILE':
       return { ...state, selectedTile: action.payload };
+    
+    case 'SET_HEX_TILES':
+      return {
+        ...state,
+        hexTiles: action.payload
+      };
     
     case 'START_BATTLE':
       const enemyHealth = action.payload.battleType === 'resource' 
