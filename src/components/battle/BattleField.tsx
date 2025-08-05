@@ -26,7 +26,7 @@ interface Tower {
 
 interface Unit {
   id: string;
-  type: 'swordsman' | 'archer' | 'cavalry' | 'mage_fire';
+  type: 'swordsman' | 'archer' | 'cavalry' | 'mage_fire' | 'mage_ice' | 'mage_lightning';
   team: 'player' | 'enemy';
   path: 'left' | 'center' | 'right';
   position: { x: number; y: number };
@@ -40,11 +40,22 @@ interface Unit {
   state: 'moving' | 'fighting' | 'attacking_building';
 }
 
+interface Catapult {
+  id: string;
+  team: 'player' | 'enemy';
+  position: { x: number; y: number };
+  health: number;
+  maxHealth: number;
+  lastShot: number;
+}
+
 const UNIT_CONFIGS = {
-  swordsman: { icon: '⚔️', health: 400, damage: 100, speed: 80, cost: 2 },
-  archer: { icon: '🏹', health: 300, damage: 120, speed: 90, cost: 3 },
-  cavalry: { icon: '🐎', health: 600, damage: 140, speed: 120, cost: 4 },
-  mage_fire: { icon: '🔥', health: 250, damage: 180, speed: 70, cost: 5 }
+  swordsman: { icon: '⚔️', health: 100, damage: 50, speed: 80, cost: 2 },
+  archer: { icon: '🏹', health: 80, damage: 40, speed: 90, cost: 3 },
+  cavalry: { icon: '🐎', health: 120, damage: 70, speed: 120, cost: 4 },
+  mage_fire: { icon: '🔥', health: 60, damage: 90, speed: 70, cost: 5 },
+  mage_ice: { icon: '❄️', health: 70, damage: 80, speed: 70, cost: 5 },
+  mage_lightning: { icon: '⚡', health: 50, damage: 100, speed: 70, cost: 5 }
 };
 
 const PATH_CONFIGS = {
@@ -60,13 +71,41 @@ export const BattleField = () => {
   const [units, setUnits] = useState<Unit[]>([]);
   const [towers, setTowers] = useState<Tower[]>([]);
   const [castles, setCastles] = useState<Castle[]>([]);
+  const [catapults, setCatapults] = useState<Catapult[]>([]);
   const [battleTime, setBattleTime] = useState(0);
   const [gameResult, setGameResult] = useState<'win' | 'lose' | null>(null);
+  const [playerArmyRemaining, setPlayerArmyRemaining] = useState<{[key: string]: number}>({});
+  const [enemyArmyRemaining, setEnemyArmyRemaining] = useState<{[key: string]: number}>({});
 
-  // Initialize battle system with organized layout
+  // Initialize battle with real army data
   useEffect(() => {
+    if (state.battleState.inBattle) {
+      initializeBattleWithArmies();
+    }
+  }, [state.battleState.inBattle, state.army]);
+
+  const initializeBattleWithArmies = () => {
+    // Player ordusu - gerçek verilerden
+    const playerArmy: {[key: string]: number} = {};
+    state.army.forEach(unit => {
+      playerArmy[unit.type] = unit.count;
+    });
+    setPlayerArmyRemaining(playerArmy);
+
+    // Düşman ordusu - rastgele ama dengeli
+    const enemyArmy: {[key: string]: number} = {};
+    const totalPlayerUnits = Object.values(playerArmy).reduce((sum, count) => sum + count, 0);
+    
+    // Düşmanın da benzer sayıda askeri olsun
+    const unitTypes = Object.keys(UNIT_CONFIGS);
+    for (let i = 0; i < Math.min(totalPlayerUnits * 1.2, 2000); i++) {
+      const randomType = unitTypes[Math.floor(Math.random() * unitTypes.length)];
+      enemyArmy[randomType] = (enemyArmy[randomType] || 0) + 1;
+    }
+    setEnemyArmyRemaining(enemyArmy);
+
+    // Initialize towers
     const initialTowers: Tower[] = [
-      // Player towers - better positioned
       {
         id: 'player-tower-left',
         team: 'player',
@@ -85,7 +124,6 @@ export const BattleField = () => {
         position: { x: 520, y: 450 },
         lastAttack: 0
       },
-      // Enemy towers - symmetrically positioned
       {
         id: 'enemy-tower-left',
         team: 'enemy',
@@ -123,9 +161,45 @@ export const BattleField = () => {
         position: { x: 400, y: 180 }
       }
     ]);
-  }, []);
 
-  // Main battle loop with improved AI
+    // Initialize catapults
+    setCatapults([
+      {
+        id: 'player-catapult-1',
+        team: 'player',
+        position: { x: 300, y: 480 },
+        health: 500,
+        maxHealth: 500,
+        lastShot: 0
+      },
+      {
+        id: 'player-catapult-2',
+        team: 'player',
+        position: { x: 500, y: 480 },
+        health: 500,
+        maxHealth: 500,
+        lastShot: 0
+      },
+      {
+        id: 'enemy-catapult-1',
+        team: 'enemy',
+        position: { x: 300, y: 220 },
+        health: 500,
+        maxHealth: 500,
+        lastShot: 0
+      },
+      {
+        id: 'enemy-catapult-2',
+        team: 'enemy',
+        position: { x: 500, y: 220 },
+        health: 500,
+        maxHealth: 500,
+        lastShot: 0
+      }
+    ]);
+  };
+
+  // Main battle loop
   useEffect(() => {
     if (!battleActive || gameResult) return;
 
@@ -137,28 +211,33 @@ export const BattleField = () => {
         setMana(prev => Math.min(10, prev + 1));
       }
 
-      // Improved unit AI
+      // Unit AI
       updateUnitsWithBetterAI();
       
-      // Spawn enemy units less frequently for better balance
-      if (battleTime % 8 === 0) {
-        spawnEnemyUnit();
+      // Enemy unit spawning (only if they have army)
+      if (battleTime % 10 === 0) {
+        spawnEnemyUnitFromArmy();
       }
       
       // Tower attacks
       handleTowerAttacks();
       
+      // Catapult attacks every 8 seconds
+      if (battleTime % 8 === 0) {
+        handleCatapultAttacks();
+      }
+      
     }, 300);
 
     return () => clearInterval(interval);
-  }, [battleActive, battleTime, mana, units, towers, castles, gameResult]);
+  }, [battleActive, battleTime, mana, units, towers, castles, catapults, gameResult, enemyArmyRemaining]);
 
   const updateUnitsWithBetterAI = useCallback(() => {
     setUnits(prevUnits => {
       const updatedUnits = prevUnits.map(unit => {
         if (unit.health <= 0) return unit;
 
-        // 1. Find nearest enemy unit first (priority)
+        // Find nearest enemy unit first
         const enemyUnits = prevUnits.filter(u => 
           u.team !== unit.team && 
           u.health > 0
@@ -178,7 +257,7 @@ export const BattleField = () => {
           }
         });
 
-        // 2. If enemy unit is close, engage in combat
+        // If enemy unit is close, engage in combat
         if (nearestEnemyUnit && minEnemyDistance < 80) {
           if (battleTime - unit.lastAttack >= 2) {
             return { 
@@ -192,9 +271,10 @@ export const BattleField = () => {
           return { ...unit, isMoving: false, state: 'fighting' as const };
         }
 
-        // 3. If no enemy units nearby, find nearest enemy building
+        // Find nearest enemy building (towers and catapults first, then castle)
         const enemyBuildings = [
           ...towers.filter(tower => tower.team !== unit.team && tower.health > 0),
+          ...catapults.filter(catapult => catapult.team !== unit.team && catapult.health > 0),
           ...castles.filter(castle => castle.team !== unit.team && castle.health > 0)
         ];
 
@@ -212,7 +292,7 @@ export const BattleField = () => {
           }
         });
 
-        // 4. Attack building if in range
+        // Attack building if in range
         if (nearestBuilding && minBuildingDistance < 60) {
           if (battleTime - unit.lastAttack >= 2) {
             if ('side' in nearestBuilding) {
@@ -223,6 +303,15 @@ export const BattleField = () => {
                   return { ...tower, health: newHealth };
                 }
                 return tower;
+              }));
+            } else if ('lastShot' in nearestBuilding) {
+              // Attack catapult
+              setCatapults(prevCatapults => prevCatapults.map(catapult => {
+                if (catapult.id === nearestBuilding.id) {
+                  const newHealth = Math.max(0, catapult.health - unit.damage);
+                  return { ...catapult, health: newHealth };
+                }
+                return catapult;
               }));
             } else {
               // Attack castle
@@ -245,9 +334,8 @@ export const BattleField = () => {
           return { ...unit, isMoving: false, state: 'attacking_building' as const };
         }
 
-        // 5. Move toward nearest target
+        // Move toward nearest target
         if (nearestEnemyUnit && minEnemyDistance < 200) {
-          // Move toward enemy unit
           const deltaX = nearestEnemyUnit.position.x - unit.position.x;
           const deltaY = nearestEnemyUnit.position.y - unit.position.y;
           const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -265,7 +353,6 @@ export const BattleField = () => {
             };
           }
         } else if (nearestBuilding) {
-          // Move toward enemy building
           const deltaX = nearestBuilding.position.x - unit.position.x;
           const deltaY = nearestBuilding.position.y - unit.position.y;
           const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -305,9 +392,8 @@ export const BattleField = () => {
       return finalUnits.filter(unit => unit.health > 0);
     });
 
-    // Check win/lose conditions
     checkGameEnd();
-  }, [battleTime, towers, castles]);
+  }, [battleTime, towers, castles, catapults]);
 
   const checkGameEnd = () => {
     setCastles(prev => {
@@ -329,7 +415,6 @@ export const BattleField = () => {
   };
 
   const handleBattleEnd = (won: boolean) => {
-    // Give rewards for winning
     if (won) {
       dispatch({
         type: 'UPDATE_RESOURCES',
@@ -345,7 +430,11 @@ export const BattleField = () => {
     
     dispatch({ type: 'BATTLE_RESULT', payload: { won } });
     
-    // Return to main map after 3 seconds
+    // Clear army if lost
+    if (!won) {
+      dispatch({ type: 'UPDATE_RESOURCES', payload: {} }); // Reset army in context
+    }
+    
     setTimeout(() => {
       dispatch({ type: 'END_BATTLE' });
     }, 3000);
@@ -358,7 +447,6 @@ export const BattleField = () => {
     setUnits([]);
     setGameResult(null);
     
-    // Reset all buildings to full health
     setTowers(prev => prev.map(tower => ({ 
       ...tower, 
       health: tower.maxHealth,
@@ -368,6 +456,12 @@ export const BattleField = () => {
     setCastles(prev => prev.map(castle => ({ 
       ...castle, 
       health: castle.maxHealth 
+    })));
+
+    setCatapults(prev => prev.map(catapult => ({
+      ...catapult,
+      health: catapult.maxHealth,
+      lastShot: 0
     })));
   };
 
@@ -380,6 +474,9 @@ export const BattleField = () => {
   const deployUnit = (unitType: keyof typeof UNIT_CONFIGS, path: 'left' | 'center' | 'right') => {
     const config = UNIT_CONFIGS[unitType];
     if (mana < config.cost) return;
+    
+    // Check if player has remaining units of this type
+    if (!playerArmyRemaining[unitType] || playerArmyRemaining[unitType] <= 0) return;
 
     const pathConfig = PATH_CONFIGS[path];
     const newUnit: Unit = {
@@ -399,19 +496,27 @@ export const BattleField = () => {
 
     setUnits(prev => [...prev, newUnit]);
     setMana(prev => prev - config.cost);
+    
+    // Reduce army count
+    setPlayerArmyRemaining(prev => ({
+      ...prev,
+      [unitType]: prev[unitType] - 1
+    }));
   };
 
-  const spawnEnemyUnit = () => {
-    const unitTypes = Object.keys(UNIT_CONFIGS) as (keyof typeof UNIT_CONFIGS)[];
-    const randomType = unitTypes[Math.floor(Math.random() * unitTypes.length)];
+  const spawnEnemyUnitFromArmy = () => {
+    const availableTypes = Object.entries(enemyArmyRemaining).filter(([_, count]) => count > 0);
+    if (availableTypes.length === 0) return;
+
+    const [randomType] = availableTypes[Math.floor(Math.random() * availableTypes.length)];
     const paths: ('left' | 'center' | 'right')[] = ['left', 'center', 'right'];
     const randomPath = paths[Math.floor(Math.random() * paths.length)];
-    const config = UNIT_CONFIGS[randomType];
+    const config = UNIT_CONFIGS[randomType as keyof typeof UNIT_CONFIGS];
     const pathConfig = PATH_CONFIGS[randomPath];
 
     const enemyUnit: Unit = {
       id: `enemy-${Date.now()}-${Math.random()}`,
-      type: randomType,
+      type: randomType as keyof typeof UNIT_CONFIGS,
       team: 'enemy',
       path: randomPath,
       position: { x: pathConfig.startX, y: 220 },
@@ -425,6 +530,12 @@ export const BattleField = () => {
     };
 
     setUnits(prev => [...prev, enemyUnit]);
+    
+    // Reduce enemy army count
+    setEnemyArmyRemaining(prev => ({
+      ...prev,
+      [randomType]: prev[randomType] - 1
+    }));
   };
 
   const handleTowerAttacks = () => {
@@ -461,6 +572,39 @@ export const BattleField = () => {
     });
   };
 
+  const handleCatapultAttacks = () => {
+    catapults.forEach(catapult => {
+      if (catapult.health <= 0) return;
+
+      const enemyBuildings = [
+        ...towers.filter(tower => tower.team !== catapult.team && tower.health > 0),
+        ...castles.filter(castle => castle.team !== catapult.team && castle.health > 0)
+      ];
+
+      if (enemyBuildings.length > 0) {
+        const target = enemyBuildings[Math.floor(Math.random() * enemyBuildings.length)];
+        
+        if ('side' in target) {
+          // Attack tower
+          setTowers(prevTowers => prevTowers.map(tower => {
+            if (tower.id === target.id) {
+              return { ...tower, health: Math.max(0, tower.health - 300) };
+            }
+            return tower;
+          }));
+        } else {
+          // Attack castle
+          setCastles(prevCastles => prevCastles.map(castle => {
+            if (castle.id === target.id) {
+              return { ...castle, health: Math.max(0, castle.health - 300) };
+            }
+            return castle;
+          }));
+        }
+      }
+    });
+  };
+
   const getUnitStateIcon = (unit: Unit) => {
     switch (unit.state) {
       case 'fighting': return '⚔️';
@@ -471,6 +615,14 @@ export const BattleField = () => {
 
   const playerCastle = castles.find(c => c.team === 'player');
   const enemyCastle = castles.find(c => c.team === 'enemy');
+
+  const getTotalPlayerArmyRemaining = () => {
+    return Object.values(playerArmyRemaining).reduce((sum, count) => sum + count, 0);
+  };
+
+  const getTotalEnemyArmyRemaining = () => {
+    return Object.values(enemyArmyRemaining).reduce((sum, count) => sum + count, 0);
+  };
 
   if (!state.battleState.inBattle) return null;
 
@@ -492,6 +644,12 @@ export const BattleField = () => {
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="bg-purple-50">⚡ {mana}/10</Badge>
+            <Badge variant="outline" className="bg-blue-50">
+              📦 Kalan Ordu: {getTotalPlayerArmyRemaining()}
+            </Badge>
+            <Badge variant="outline" className="bg-red-50">
+              🔴 Düşman Ordusu: {getTotalEnemyArmyRemaining()}
+            </Badge>
             <Button onClick={endBattle} variant="outline" size="sm">
               <X className="w-4 h-4" />
             </Button>
@@ -524,10 +682,33 @@ export const BattleField = () => {
               </CardContent>
             </Card>
 
+            {/* Player Army Status */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">⚔️ Mevcut Ordun</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {Object.entries(playerArmyRemaining).map(([unitType, count]) => (
+                  <div key={unitType} className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <span>{UNIT_CONFIGS[unitType as keyof typeof UNIT_CONFIGS]?.icon}</span>
+                      <span>{unitType}</span>
+                    </div>
+                    <Badge variant={count > 0 ? "default" : "secondary"}>{count}</Badge>
+                  </div>
+                ))}
+                {getTotalPlayerArmyRemaining() === 0 && (
+                  <div className="text-center text-red-600 text-sm font-medium">
+                    ❌ Ordun Tükendi!
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Unit Deployment */}
             <Card className="shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">⚔️ Asker Gönderimi</CardTitle>
+                <CardTitle className="text-base">🚀 Asker Gönderimi</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {(['left', 'center', 'right'] as const).map(path => (
@@ -536,19 +717,25 @@ export const BattleField = () => {
                       {path === 'left' ? '🔵 Sol Yol' : path === 'center' ? '🟢 Orta Yol' : '🔴 Sağ Yol'}
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(UNIT_CONFIGS).map(([unitType, config]) => (
-                        <Button
-                          key={unitType}
-                          size="sm"
-                          variant="outline"
-                          onClick={() => deployUnit(unitType as keyof typeof UNIT_CONFIGS, path)}
-                          disabled={mana < config.cost || !battleActive}
-                          className="h-16 flex flex-col gap-1"
-                        >
-                          <span className="text-lg">{config.icon}</span>
-                          <span className="text-xs font-bold text-purple-600">{config.cost}⚡</span>
-                        </Button>
-                      ))}
+                      {Object.entries(UNIT_CONFIGS).map(([unitType, config]) => {
+                        const hasUnits = playerArmyRemaining[unitType] > 0;
+                        return (
+                          <Button
+                            key={unitType}
+                            size="sm"
+                            variant={hasUnits ? "outline" : "secondary"}
+                            onClick={() => deployUnit(unitType as keyof typeof UNIT_CONFIGS, path)}
+                            disabled={mana < config.cost || !battleActive || !hasUnits}
+                            className="h-16 flex flex-col gap-1"
+                          >
+                            <span className="text-lg">{config.icon}</span>
+                            <span className="text-xs font-bold text-purple-600">{config.cost}⚡</span>
+                            <span className="text-xs text-muted-foreground">
+                              {playerArmyRemaining[unitType] || 0}
+                            </span>
+                          </Button>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -557,8 +744,13 @@ export const BattleField = () => {
 
             {/* Battle Control */}
             {!battleActive ? (
-              <Button onClick={startBattle} className="w-full h-12 text-lg bg-green-600 hover:bg-green-700" size="lg">
-                🚀 Savaşı Başlat
+              <Button 
+                onClick={startBattle} 
+                className="w-full h-12 text-lg bg-green-600 hover:bg-green-700" 
+                size="lg"
+                disabled={getTotalPlayerArmyRemaining() === 0}
+              >
+                {getTotalPlayerArmyRemaining() === 0 ? '❌ Ordu Yok' : '🚀 Savaşı Başlat'}
               </Button>
             ) : (
               <Button onClick={endBattle} variant="destructive" className="w-full h-12 text-lg" size="lg">
@@ -567,12 +759,12 @@ export const BattleField = () => {
             )}
           </div>
 
-          {/* Battle Arena - More organized layout */}
+          {/* Battle Arena */}
           <div className="flex-1 relative bg-gradient-to-b from-sky-200 via-green-200 to-yellow-200 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-radial from-green-300/30 via-green-400/20 to-green-500/10" />
             
             <div className="absolute inset-6">
-              {/* Enemy Castle - Top center */}
+              {/* Enemy Castle */}
               <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
                 <div className="flex flex-col items-center">
                   <div className="w-32 h-24 bg-gradient-to-b from-red-600 to-red-800 rounded-lg shadow-xl border-2 border-red-700 flex items-center justify-center">
@@ -589,7 +781,7 @@ export const BattleField = () => {
                 </div>
               </div>
 
-              {/* Enemy Towers - Symmetrically placed */}
+              {/* Enemy Towers */}
               {towers
                 .filter(tower => tower.team === 'enemy' && tower.health > 0)
                 .map(tower => (
@@ -611,14 +803,37 @@ export const BattleField = () => {
                           style={{ width: `${(tower.health / tower.maxHealth) * 100}%` }}
                         />
                       </div>
-                      <div className="text-xs font-semibold text-red-700 mt-1">
-                        {tower.side === 'left' ? 'SOL' : 'SAĞ'}
+                    </div>
+                  </div>
+                ))}
+
+              {/* Enemy Catapults */}
+              {catapults
+                .filter(catapult => catapult.team === 'enemy' && catapult.health > 0)
+                .map(catapult => (
+                  <div
+                    key={catapult.id}
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                    style={{
+                      left: `${catapult.position.x}px`,
+                      top: `${catapult.position.y}px`
+                    }}
+                  >
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 bg-gradient-to-b from-orange-500 to-orange-700 rounded-lg shadow-lg border border-orange-600 flex items-center justify-center">
+                        <span className="text-white text-sm">🎯</span>
+                      </div>
+                      <div className="w-20 h-2 bg-gray-300 rounded-full mt-1">
+                        <div 
+                          className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                          style={{ width: `${(catapult.health / catapult.maxHealth) * 100}%` }}
+                        />
                       </div>
                     </div>
                   </div>
                 ))}
 
-              {/* Player Castle - Bottom center */}
+              {/* Player Castle */}
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
                 <div className="flex flex-col items-center">
                   <div className="text-sm font-bold mb-1 text-blue-800">SENİN KALEN</div>
@@ -635,7 +850,7 @@ export const BattleField = () => {
                 </div>
               </div>
 
-              {/* Player Towers - Symmetrically placed */}
+              {/* Player Towers */}
               {towers
                 .filter(tower => tower.team === 'player' && tower.health > 0)
                 .map(tower => (
@@ -648,9 +863,6 @@ export const BattleField = () => {
                     }}
                   >
                     <div className="flex flex-col items-center">
-                      <div className="text-xs font-semibold text-blue-700 mb-1">
-                        {tower.side === 'left' ? 'SOL' : 'SAĞ'}
-                      </div>
                       <div className="w-20 h-20 bg-gradient-to-b from-blue-500 to-blue-700 rounded-full shadow-lg border border-blue-600 flex items-center justify-center">
                         <span className="text-white text-lg">🗼</span>
                       </div>
@@ -664,7 +876,33 @@ export const BattleField = () => {
                   </div>
                 ))}
 
-              {/* Units with better visual feedback */}
+              {/* Player Catapults */}
+              {catapults
+                .filter(catapult => catapult.team === 'player' && catapult.health > 0)
+                .map(catapult => (
+                  <div
+                    key={catapult.id}
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                    style={{
+                      left: `${catapult.position.x}px`,
+                      top: `${catapult.position.y}px`
+                    }}
+                  >
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 bg-gradient-to-b from-blue-400 to-blue-600 rounded-lg shadow-lg border border-blue-500 flex items-center justify-center">
+                        <span className="text-white text-sm">🎯</span>
+                      </div>
+                      <div className="w-20 h-2 bg-gray-300 rounded-full mt-1">
+                        <div 
+                          className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                          style={{ width: `${(catapult.health / catapult.maxHealth) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+              {/* Units */}
               {units.map(unit => (
                 <div
                   key={unit.id}
@@ -704,7 +942,7 @@ export const BattleField = () => {
               <div className="font-bold mb-2 text-gray-800">📊 İstatistikler</div>
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between">
-                  <span>Aktif Askerler:</span>
+                  <span>Sahada Asker:</span>
                   <span className="font-semibold">{units.length}</span>
                 </div>
                 <div className="flex justify-between">
@@ -714,6 +952,14 @@ export const BattleField = () => {
                 <div className="flex justify-between">
                   <span>Kırmızı Takım:</span>
                   <span className="font-semibold text-red-600">{units.filter(u => u.team === 'enemy').length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Kalan Ordun:</span>
+                  <span className="font-semibold text-blue-800">{getTotalPlayerArmyRemaining()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Düşman Ordusu:</span>
+                  <span className="font-semibold text-red-800">{getTotalEnemyArmyRemaining()}</span>
                 </div>
               </div>
             </div>
