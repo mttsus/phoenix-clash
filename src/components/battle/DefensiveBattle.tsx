@@ -17,6 +17,7 @@ interface Tower {
   isDestroyed: boolean;
   x: number;
   y: number;
+  team: 'player' | 'enemy';
 }
 
 interface Unit {
@@ -44,6 +45,9 @@ interface Catapult {
   maxHealth: number;
   lastShot: number;
   isDestroyed: boolean;
+  targetX: number;
+  targetY: number;
+  isMoving: boolean;
 }
 
 const UNIT_STATS = {
@@ -67,15 +71,18 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
   const [catapults, setCatapults] = useState<Catapult[]>([]);
   const [gameTime, setGameTime] = useState(0);
   const [selectedUnitToFollow, setSelectedUnitToFollow] = useState<string | null>(null);
-  const [cameraPosition, setCameraPosition] = useState({ x: 400, y: 300 });
+  const [cameraPosition, setCameraPosition] = useState({ x: 300, y: 400 });
+  const [castleHealth, setCastleHealth] = useState({ player: 5000, enemy: 5000 });
 
-  // Initialize towers (3 lanes x 3 positions = 9 towers)
+  // Initialize towers (Both player and enemy towers - 3 lanes x 3 positions each)
   useEffect(() => {
     const initialTowers: Tower[] = [];
+    
+    // Enemy towers (top side)
     for (let lane = 0; lane < 3; lane++) {
       for (let position = 0; position < 3; position++) {
-        const x = 600 + (position * 80); // Enemy towers on the right
-        const y = 100 + (lane * 120);
+        const x = 150 + (lane * 200);
+        const y = 80 + (position * 60);
         initialTowers.push({
           id: lane * 3 + position,
           lane,
@@ -83,13 +90,36 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
           health: 1000,
           maxHealth: 1000,
           damage: 150,
-          range: 120,
+          range: 80,
           isDestroyed: false,
           x,
-          y
+          y,
+          team: 'enemy'
         });
       }
     }
+
+    // Player towers (bottom side)
+    for (let lane = 0; lane < 3; lane++) {
+      for (let position = 0; position < 3; position++) {
+        const x = 150 + (lane * 200);
+        const y = 520 - (position * 60);
+        initialTowers.push({
+          id: 9 + lane * 3 + position, // Offset by 9 for enemy towers
+          lane,
+          position,
+          health: 1000,
+          maxHealth: 1000,
+          damage: 150,
+          range: 80,
+          isDestroyed: false,
+          x,
+          y,
+          team: 'player'
+        });
+      }
+    }
+    
     setTowers(initialTowers);
 
     // Initialize catapults
@@ -97,22 +127,28 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
       {
         id: 0,
         team: 'player',
-        x: 50,
-        y: 200,
+        x: 300,
+        y: 580,
         health: 100,
         maxHealth: 100,
         lastShot: 0,
-        isDestroyed: false
+        isDestroyed: false,
+        targetX: 300,
+        targetY: 300,
+        isMoving: false
       },
       {
         id: 1,
         team: 'enemy',
-        x: 750,
-        y: 200,
+        x: 300,
+        y: 20,
         health: 100,
         maxHealth: 100,
         lastShot: 0,
-        isDestroyed: false
+        isDestroyed: false,
+        targetX: 300,
+        targetY: 300,
+        isMoving: false
       }
     ]);
   }, []);
@@ -143,34 +179,57 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
         return prevUnits.map(unit => {
           if (unit.battalion <= 0) return unit;
 
-          // Find closest tower in the same lane
-          const laneTowers = towers.filter(t => t.lane === unit.lane && !t.isDestroyed);
-          const closestTower = laneTowers.sort((a, b) => 
-            Math.abs(a.x - unit.x) - Math.abs(b.x - unit.x)
-          )[0];
+          // Find enemy towers in the same lane that are not destroyed
+          const laneTowers = towers.filter(t => 
+            t.lane === unit.lane && 
+            !t.isDestroyed && 
+            t.team === 'enemy'
+          ).sort((a, b) => Math.abs(a.y - unit.y) - Math.abs(b.y - unit.y));
+
+          const closestTower = laneTowers[0];
 
           if (closestTower) {
-            const distance = Math.abs(closestTower.x - unit.x);
+            const distance = Math.abs(closestTower.y - unit.y);
             
-            if (distance > 30) {
-              // Move towards tower
+            if (distance > 40) {
+              // Move towards tower (vertical movement)
               return {
                 ...unit,
-                x: unit.x + unit.speed,
+                y: unit.y - unit.speed,
                 isMoving: true,
                 targetTower: closestTower
               };
             } else {
               // Attack tower
-              if (gameTime - unit.lastAttack > 1) { // Attack every second
-                // Tower takes damage
+              if (gameTime - unit.lastAttack > 1) {
                 setTowers(prevTowers => 
                   prevTowers.map(t => 
                     t.id === closestTower.id 
-                      ? { ...t, health: Math.max(0, t.health - unit.damage) }
+                      ? { ...t, health: Math.max(0, t.health - unit.damage), isDestroyed: t.health - unit.damage <= 0 }
                       : t
                   )
                 );
+                return { ...unit, lastAttack: gameTime, isMoving: false };
+              }
+            }
+          } else {
+            // No towers in this lane, move towards enemy castle
+            const enemyCastleY = 20;
+            const distance = Math.abs(enemyCastleY - unit.y);
+            
+            if (distance > 40) {
+              return {
+                ...unit,
+                y: unit.y - unit.speed,
+                isMoving: true
+              };
+            } else {
+              // Attack enemy castle
+              if (gameTime - unit.lastAttack > 1) {
+                setCastleHealth(prev => ({
+                  ...prev,
+                  enemy: Math.max(0, prev.enemy - unit.damage)
+                }));
                 return { ...unit, lastAttack: gameTime, isMoving: false };
               }
             }
@@ -180,14 +239,9 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
         });
       });
 
-      // Tower attacks on units
+      // Tower attacks on units - Fixed to kill only 20 units
       towers.forEach(tower => {
-        if (tower.isDestroyed || tower.health <= 0) {
-          setTowers(prev => prev.map(t => 
-            t.id === tower.id ? { ...t, isDestroyed: true } : t
-          ));
-          return;
-        }
+        if (tower.isDestroyed || tower.health <= 0) return;
 
         // Find units in range
         const unitsInRange = units.filter(unit => {
@@ -198,11 +252,11 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
         });
 
         if (unitsInRange.length > 0) {
-          // Tower attacks (AoE damage)
+          // Tower attacks - kills exactly 20 units
           setUnits(prevUnits => 
             prevUnits.map(unit => {
               if (unitsInRange.includes(unit)) {
-                const casualties = Math.min(unit.battalion, Math.floor(tower.damage / 100 * 150)); // 100-200 casualties
+                const casualties = Math.min(unit.battalion, 20); // Fixed to 20 units
                 return {
                   ...unit,
                   battalion: Math.max(0, unit.battalion - casualties)
@@ -214,18 +268,39 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
         }
       });
 
-      // Catapult auto-fire every 21 seconds
+      // Catapult movement and auto-fire
       setCatapults(prevCatapults => 
         prevCatapults.map(catapult => {
-          if (!catapult.isDestroyed && gameTime - catapult.lastShot >= 21) {
-            // Auto-fire at random tower
-            const activeTowers = towers.filter(t => !t.isDestroyed);
-            if (activeTowers.length > 0) {
-              const targetTower = activeTowers[Math.floor(Math.random() * activeTowers.length)];
+          if (catapult.isDestroyed) return catapult;
+
+          // Move catapults automatically towards center
+          if (!catapult.isMoving) {
+            const centerY = 300;
+            const distance = Math.abs(centerY - catapult.y);
+            if (distance > 5) {
+              catapult.isMoving = true;
+              if (catapult.team === 'player') {
+                catapult.targetY = centerY + 50;
+              } else {
+                catapult.targetY = centerY - 50;
+              }
+            }
+          }
+
+          // Auto-fire every 21 seconds
+          if (gameTime - catapult.lastShot >= 21) {
+            const enemyTeam = catapult.team === 'player' ? 'enemy' : 'player';
+            const enemyTowers = towers.filter(t => !t.isDestroyed && t.team === enemyTeam);
+            if (enemyTowers.length > 0) {
+              const targetTower = enemyTowers[Math.floor(Math.random() * enemyTowers.length)];
               setTowers(prevTowers =>
                 prevTowers.map(t =>
                   t.id === targetTower.id
-                    ? { ...t, health: Math.max(0, t.health - 100) }
+                    ? { 
+                        ...t, 
+                        health: Math.max(0, t.health - 100),
+                        isDestroyed: t.health - 100 <= 0 
+                      }
                     : t
                 )
               );
@@ -235,10 +310,23 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
           return catapult;
         })
       );
+
+      // Check win conditions
+      if (castleHealth.enemy <= 0) {
+        setTimeout(() => {
+          dispatch({ type: 'BATTLE_RESULT', payload: { won: true } });
+          dispatch({ type: 'END_BATTLE' });
+        }, 1000);
+      } else if (castleHealth.player <= 0) {
+        setTimeout(() => {
+          dispatch({ type: 'BATTLE_RESULT', payload: { won: false } });
+          dispatch({ type: 'END_BATTLE' });
+        }, 1000);
+      }
     }, 100);
 
     return () => clearInterval(gameLoop);
-  }, [units, towers, gameTime]);
+  }, [units, towers, gameTime, castleHealth, dispatch]);
 
   // Deploy unit battalion
   const deployUnit = useCallback((lane: number) => {
@@ -249,8 +337,8 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
         id: `${selectedUnit}_${Date.now()}`,
         type: selectedUnit,
         battalion: 100,
-        x: 100,
-        y: 100 + (lane * 120),
+        x: 150 + (lane * 200),
+        y: 550,
         lane,
         health: unitData.health,
         maxHealth: unitData.health,
@@ -273,7 +361,7 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
     if (selectedUnitToFollow) {
       const unit = units.find(u => u.id === selectedUnitToFollow);
       if (unit) {
-        setCameraPosition({ x: unit.x - 400, y: unit.y - 300 });
+        setCameraPosition({ x: unit.x - 300, y: unit.y - 400 });
       }
     }
   }, [selectedUnitToFollow, units]);
@@ -296,13 +384,19 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <span>Kale Sağlığı:</span>
-          <Progress value={75} className="w-32" />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span>Düşman Kalesi:</span>
+            <Progress value={(castleHealth.enemy / 5000) * 100} className="w-32" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span>Kale Sağlığı:</span>
+            <Progress value={(castleHealth.player / 5000) * 100} className="w-32" />
+          </div>
         </div>
 
         <Button 
-          onClick={() => setCameraPosition({ x: 400, y: 300 })}
+          onClick={() => setCameraPosition({ x: 300, y: 400 })}
           variant="outline"
           size="sm"
         >
@@ -376,7 +470,7 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
                     </Badge>
                   </div>
                   <div className="text-gray-400">
-                    Hat {unit.lane + 1} - X: {Math.round(unit.x)}
+                    Hat {unit.lane + 1} - Y: {Math.round(unit.y)}
                   </div>
                 </div>
               ))}
@@ -384,37 +478,47 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
           </div>
         </div>
 
-        {/* Battle Field */}
+        {/* Vertical Battle Field */}
         <div className="flex-1 relative overflow-hidden">
           <div 
-            className="w-full h-full bg-gradient-to-r from-green-600 via-green-500 to-green-400 relative"
+            className="w-full h-full bg-gradient-to-b from-red-900 via-green-500 to-blue-900 relative"
             style={{
               backgroundImage: `
-                linear-gradient(90deg, rgba(0,0,0,0.1) 0%, transparent 50%, rgba(0,0,0,0.3) 100%),
-                repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, transparent 2px, transparent 120px, rgba(0,0,0,0.05) 122px)
+                linear-gradient(180deg, rgba(139,69,19,0.3) 0%, rgba(34,139,34,0.6) 50%, rgba(30,144,255,0.3) 100%),
+                repeating-linear-gradient(90deg, rgba(0,0,0,0.05) 0px, transparent 2px, transparent 200px, rgba(0,0,0,0.05) 202px)
               `
             }}
           >
-            {/* Lane Dividers */}
+            {/* Lane Dividers - Vertical */}
             <div className="absolute top-0 left-0 w-full h-full">
-              <div className="absolute top-1/3 left-0 w-full h-px bg-black opacity-20"></div>
-              <div className="absolute top-2/3 left-0 w-full h-px bg-black opacity-20"></div>
-            </div>
-
-            {/* Middle Bridge */}
-            <div className="absolute top-1/2 left-1/3 w-1/3 h-4 bg-amber-600 transform -translate-y-2 rounded shadow"></div>
-
-            {/* Player Castle */}
-            <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-              <div className="w-16 h-20 bg-blue-800 rounded-t-lg flex items-center justify-center text-2xl border-2 border-blue-600">
-                🏰
-              </div>
+              <div className="absolute top-0 left-1/4 w-px h-full bg-black opacity-20"></div>
+              <div className="absolute top-0 left-1/2 w-px h-full bg-black opacity-20"></div>
+              <div className="absolute top-0 left-3/4 w-px h-full bg-black opacity-20"></div>
             </div>
 
             {/* Enemy Castle */}
-            <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-              <div className="w-16 h-20 bg-red-800 rounded-t-lg flex items-center justify-center text-2xl border-2 border-red-600">
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
+              <div className="w-20 h-16 bg-red-800 rounded-b-lg flex items-center justify-center text-2xl border-2 border-red-600">
                 🏰
+              </div>
+              <div className="mt-1 w-20 h-2 bg-red-500 rounded">
+                <div 
+                  className="h-full bg-green-500 rounded transition-all"
+                  style={{ width: `${(castleHealth.enemy / 5000) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Player Castle */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+              <div className="w-20 h-16 bg-blue-800 rounded-t-lg flex items-center justify-center text-2xl border-2 border-blue-600">
+                🏰
+              </div>
+              <div className="mb-1 w-20 h-2 bg-red-500 rounded">
+                <div 
+                  className="h-full bg-green-500 rounded transition-all"
+                  style={{ width: `${(castleHealth.player / 5000) * 100}%` }}
+                />
               </div>
             </div>
 
@@ -429,7 +533,7 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
                   transform: 'translate(-50%, -50%)'
                 }}
               >
-                <div className={`w-8 h-10 ${tower.isDestroyed ? 'bg-gray-500' : 'bg-stone-600'} rounded-t-lg flex items-center justify-center text-sm border-2 ${tower.isDestroyed ? 'border-gray-400' : 'border-stone-400'}`}>
+                <div className={`w-8 h-10 ${tower.isDestroyed ? 'bg-gray-500' : tower.team === 'player' ? 'bg-blue-600' : 'bg-red-600'} rounded flex items-center justify-center text-sm border-2 ${tower.isDestroyed ? 'border-gray-400' : tower.team === 'player' ? 'border-blue-400' : 'border-red-400'}`}>
                   {tower.isDestroyed ? '💥' : '🗼'}
                 </div>
                 {!tower.isDestroyed && (
