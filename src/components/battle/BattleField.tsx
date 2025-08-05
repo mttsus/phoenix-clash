@@ -92,16 +92,26 @@ export const BattleField = () => {
     });
     setPlayerArmyRemaining(playerArmy);
 
-    // Düşman ordusu - rastgele ama dengeli
+    // Düşman ordusu - sınırlı ve kontrollü
+    // Eğer düşmanın ordusu varsa (battleState.enemy'den gelen veri)
     const enemyArmy: {[key: string]: number} = {};
+    
+    // Düşman ordusunu simüle et - gerçek oyunda bu veri API'den gelecek
+    // Şimdilik düşmanın da sınırlı ordusu olsun
     const totalPlayerUnits = Object.values(playerArmy).reduce((sum, count) => sum + count, 0);
     
-    // Düşmanın da benzer sayıda askeri olsun
-    const unitTypes = Object.keys(UNIT_CONFIGS);
-    for (let i = 0; i < Math.min(totalPlayerUnits * 1.2, 2000); i++) {
-      const randomType = unitTypes[Math.floor(Math.random() * unitTypes.length)];
-      enemyArmy[randomType] = (enemyArmy[randomType] || 0) + 1;
+    if (totalPlayerUnits > 0) {
+      // Düşmanın da benzer ama biraz daha az askeri olsun
+      const unitTypes = Object.keys(UNIT_CONFIGS);
+      const enemyTotalUnits = Math.max(1, Math.floor(totalPlayerUnits * 0.8)); // %80'i kadar
+      
+      for (let i = 0; i < enemyTotalUnits; i++) {
+        const randomType = unitTypes[Math.floor(Math.random() * unitTypes.length)];
+        enemyArmy[randomType] = (enemyArmy[randomType] || 0) + 1;
+      }
     }
+    // Eğer düşmanın ordusu yoksa boş object kalır
+    
     setEnemyArmyRemaining(enemyArmy);
 
     // Initialize towers
@@ -214,7 +224,7 @@ export const BattleField = () => {
       // Unit AI
       updateUnitsWithBetterAI();
       
-      // Enemy unit spawning (only if they have army)
+      // Enemy unit spawning - SADECE ORDUSU VARSA
       if (battleTime % 10 === 0) {
         spawnEnemyUnitFromArmy();
       }
@@ -505,8 +515,12 @@ export const BattleField = () => {
   };
 
   const spawnEnemyUnitFromArmy = () => {
+    // Düşmanın ordusu var mı kontrol et
     const availableTypes = Object.entries(enemyArmyRemaining).filter(([_, count]) => count > 0);
-    if (availableTypes.length === 0) return;
+    if (availableTypes.length === 0) {
+      // Düşmanın ordusu yoksa asker gönderemiyor
+      return;
+    }
 
     const [randomType] = availableTypes[Math.floor(Math.random() * availableTypes.length)];
     const paths: ('left' | 'center' | 'right')[] = ['left', 'center', 'right'];
@@ -526,12 +540,12 @@ export const BattleField = () => {
       speed: config.speed,
       isMoving: true,
       lastAttack: 0,
-      state: 'moving'
+      state: 'moving' as const
     };
 
     setUnits(prev => [...prev, enemyUnit]);
     
-    // Reduce enemy army count
+    // Düşman ordusunu azalt
     setEnemyArmyRemaining(prev => ({
       ...prev,
       [randomType]: prev[randomType] - 1
@@ -650,6 +664,11 @@ export const BattleField = () => {
             <Badge variant="outline" className="bg-red-50 text-xs sm:text-sm">
               🔴 Düşman: {getTotalEnemyArmyRemaining()}
             </Badge>
+            {getTotalEnemyArmyRemaining() === 0 && (
+              <Badge variant="outline" className="bg-yellow-50 text-xs sm:text-sm">
+                ⚠️ Düşman Ordusuz
+              </Badge>
+            )}
             <Button onClick={endBattle} variant="outline" size="sm">
               <X className="w-4 h-4" />
             </Button>
@@ -679,6 +698,35 @@ export const BattleField = () => {
                   </div>
                   <Progress value={enemyCastle ? (enemyCastle.health / enemyCastle.maxHealth) * 100 : 100} className="h-2" />
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Enemy Army Status */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm sm:text-base">🔴 Düşman Ordusu</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {getTotalEnemyArmyRemaining() > 0 ? (
+                  Object.entries(enemyArmyRemaining).map(([unitType, count]) => (
+                    count > 0 && (
+                      <div key={unitType} className="flex justify-between items-center text-xs sm:text-sm">
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <span>{UNIT_CONFIGS[unitType as keyof typeof UNIT_CONFIGS]?.icon}</span>
+                          <span className="truncate">{unitType}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">{count}</Badge>
+                      </div>
+                    )
+                  ))
+                ) : (
+                  <div className="text-center text-amber-600 text-xs sm:text-sm font-medium">
+                    ⚠️ Düşmanın ordusu yok!
+                    <div className="text-xs text-gray-500 mt-1">
+                      Sadece mancınıklar saldıracak
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -919,7 +967,7 @@ export const BattleField = () => {
                       unit.team === 'player' 
                         ? 'shadow-lg shadow-blue-500/40 border border-blue-400 bg-blue-100/90' 
                         : 'shadow-lg shadow-red-500/40 border border-red-400 bg-red-100/90'
-                      } rounded-lg p-1`}>
+                    } rounded-lg p-1`}>
                       <div className="text-sm sm:text-xl text-center mb-1">
                         {UNIT_CONFIGS[unit.type].icon}
                       </div>
