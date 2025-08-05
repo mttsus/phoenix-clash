@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Shield, ShieldOff } from 'lucide-react';
 import { ResourceBattle } from './ResourceBattle';
+import { CastleInterior } from './CastleInterior';
 
 interface HexPosition {
   q: number;
@@ -195,6 +196,7 @@ export const HexGrid = () => {
   const [userHasShield, setUserHasShield] = useState(false);
   const [selectedResourceRegion, setSelectedResourceRegion] = useState<ResourceRegion | null>(null);
   const [isBattleOpen, setIsBattleOpen] = useState(false);
+  const [isCastleInteriorOpen, setIsCastleInteriorOpen] = useState(false);
 
   useEffect(() => {
     // Harita tiles'ını oluştur
@@ -369,6 +371,12 @@ export const HexGrid = () => {
     }
 
     const playerOnTile = getPlayerOnTile(tile.q, tile.r);
+    
+    // Kendi kalene tıklama - Kale içi ekranını aç
+    if (playerOnTile && playerOnTile.user_id === user?.id) {
+      setIsCastleInteriorOpen(true);
+      return;
+    }
     
     // Düşman kalesi kontrolü - Kalkanlı kalelere saldırı yapılamaz
     if (playerOnTile && playerOnTile.user_id !== user?.id) {
@@ -670,6 +678,12 @@ export const HexGrid = () => {
           fetchResourceRegions();
           // Could also update user resources here based on owned regions
         }}
+      />
+      
+      {/* Castle Interior Modal */}
+      <CastleInterior 
+        isOpen={isCastleInteriorOpen}
+        onClose={() => setIsCastleInteriorOpen(false)}
       />
     </div>
   );
