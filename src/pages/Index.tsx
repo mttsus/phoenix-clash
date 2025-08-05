@@ -42,77 +42,30 @@ const Index = () => {
     );
   }
 
-  // Tutorial tamamlanmamışsa sadece tutorial göster
-  if (tutorialProgress && !tutorialProgress.tutorial_completed) {
-    return (
-      <div className="min-h-screen bg-background">
-        <GameProvider>
-          {/* Minimal üst panel - sadece çıkış butonu */}
-          <div className="h-16 border-b border-border flex items-center justify-between px-4">
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold text-primary">🏰 Tutorial Modu</h1>
-              <span className="text-sm text-muted-foreground">
-                Oyunu öğrenmek için tutorial'ı tamamlayın
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 text-sm">
-                <User className="w-4 h-4" />
-                <span>{user.user_metadata?.username || user.email?.split('@')[0]}</span>
-              </div>
-              <Button
-                onClick={handleSignOut}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                Çıkış
-              </Button>
-            </div>
-          </div>
-          
-          {/* Tutorial alanı */}
-          <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-            <div className="max-w-2xl mx-auto p-8 text-center">
-              <div className="mb-8">
-                <div className="text-6xl mb-4">🎯</div>
-                <h2 className="text-2xl font-bold mb-2">Hoşgeldin Komutan!</h2>
-                <p className="text-muted-foreground">
-                  Phoenix Clash oyununa hoşgeldin. Oyunu öğrenmek için tutorial'ı tamamlamalısın.
-                  Tutorial boyunca adım adım tüm oyun mekaniklerini öğreneceksin.
-                </p>
-              </div>
-              
-              <div className="bg-white rounded-lg p-6 shadow-lg border">
-                <h3 className="font-semibold mb-2">Tutorial İçeriği:</h3>
-                <ul className="text-left space-y-1 text-sm text-muted-foreground">
-                  <li>✓ Kale yerleştirme</li>
-                  <li>✓ Kale yönetimi</li>
-                  <li>✓ Bina inşa etme</li>
-                  <li>✓ Ordu oluşturma</li>
-                  <li>✓ Savaş mekanikleri</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          
-          {/* Tutorial Overlay - Her zaman görünür */}
-          <TutorialOverlay />
-        </GameProvider>
-      </div>
-    );
-  }
+  const isTutorialActive = tutorialProgress && !tutorialProgress.tutorial_completed;
 
-  // Tutorial tamamlandıysa normal oyun ekranını göster
   return (
     <GameProvider>
       <div className="min-h-screen bg-background">
         <div className="flex flex-col h-screen">
-          {/* Üst Panel - Kaynaklar ve Kontroller */}
+          {/* Üst Panel - Tutorial modu için özel başlık */}
           <div className="h-20 border-b border-border flex">
             <div className="flex-1">
-              <ResourcePanel />
+              {isTutorialActive ? (
+                <div className="h-full flex items-center px-4 bg-blue-50 border-r border-blue-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                      📚
+                    </div>
+                    <div>
+                      <h2 className="font-semibold text-blue-800">Tutorial Modu</h2>
+                      <p className="text-xs text-blue-600">Oyunu öğrenmek için adımları takip edin</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <ResourcePanel />
+              )}
             </div>
             <div className="flex items-center gap-2 px-4">
               <div className="flex items-center gap-2 text-sm">
@@ -131,16 +84,19 @@ const Index = () => {
             </div>
           </div>
           
-          {/* Ana Oyun Alanı */}
+          {/* Ana Oyun Alanı - Tutorial modunda da aynı */}
           <div className="flex-1 flex">
-            {/* Sol Panel - Ordu Yönetimi */}
-            <div className="w-80 border-r border-border bg-card">
+            {/* Sol Panel - Tutorial modunda sınırlı erişim */}
+            <div className={`w-80 border-r border-border bg-card ${isTutorialActive ? 'opacity-50' : ''}`}>
               <ArmyPanel />
             </div>
             
-            {/* Tam Ekran Hex Grid Harita */}
+            {/* Tam Ekran Hex Grid Harita - Her zaman görünür */}
             <div className="flex-1 relative">
               <HexGrid />
+              {isTutorialActive && (
+                <div className="absolute inset-0 bg-black bg-opacity-20 pointer-events-none" />
+              )}
             </div>
           </div>
         </div>
@@ -148,7 +104,7 @@ const Index = () => {
         {/* Savaş Arenası Modal */}
         <BattleArena />
         
-        {/* Tutorial Overlay - Sadece aktifse göster */}
+        {/* Tutorial Overlay - Aktifse görünür */}
         <TutorialOverlay />
       </div>
     </GameProvider>
