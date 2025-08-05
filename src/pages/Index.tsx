@@ -1,39 +1,22 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HexGrid } from '@/components/game/HexGrid';
 import { ResourcePanel } from '@/components/game/ResourcePanel';
 import { ArmyPanel } from '@/components/game/ArmyPanel';
 import { BattleArena } from '@/components/game/BattleArena';
-import { TutorialOverlay } from '@/components/tutorial/TutorialOverlay';
-import { TutorialTracker } from '@/components/tutorial/TutorialTracker';
 import { GameProvider } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { LogOut, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { CastleInterior } from '@/components/game/CastleInterior';
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const [selectedCastle, setSelectedCastle] = useState<any>(null);
-  const [tutorialEvents, setTutorialEvents] = useState({
-    castleMoved: false,
-    castleClicked: false,
-    constructionStarted: false,
-    constructionCompleted: false,
-    buildingUpgraded: false,
-    armyProduced: false,
-    battleStarted: false
-  });
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
-  };
-
-  const handleTutorialEvent = (eventType: keyof typeof tutorialEvents) => {
-    setTutorialEvents(prev => ({ ...prev, [eventType]: true }));
   };
 
   if (!user) {
@@ -45,20 +28,6 @@ const Index = () => {
     <GameProvider>
       <div className="min-h-screen bg-background">
         <div className="flex flex-col h-screen">
-          {/* Tutorial Overlay */}
-          <TutorialOverlay />
-          
-          {/* Tutorial Event Tracker */}
-          <TutorialTracker
-            onCastleMoved={tutorialEvents.castleMoved ? () => {} : () => handleTutorialEvent('castleMoved')}
-            onCastleClicked={tutorialEvents.castleClicked ? () => {} : () => handleTutorialEvent('castleClicked')}
-            onConstructionStarted={tutorialEvents.constructionStarted ? () => {} : () => handleTutorialEvent('constructionStarted')}
-            onConstructionCompleted={tutorialEvents.constructionCompleted ? () => {} : () => handleTutorialEvent('constructionCompleted')}
-            onBuildingUpgraded={tutorialEvents.buildingUpgraded ? () => {} : () => handleTutorialEvent('buildingUpgraded')}
-            onArmyProduced={tutorialEvents.armyProduced ? () => {} : () => handleTutorialEvent('armyProduced')}
-            onBattleStarted={tutorialEvents.battleStarted ? () => {} : () => handleTutorialEvent('battleStarted')}
-          />
-
           {/* Üst Panel - Kaynaklar ve Kontroller */}
           <div className="h-20 border-b border-border flex">
             <div className="flex-1">
@@ -90,34 +59,10 @@ const Index = () => {
             
             {/* Tam Ekran Hex Grid Harita */}
             <div className="flex-1 relative">
-              <HexGrid 
-                onCastleMoved={() => handleTutorialEvent('castleMoved')}
-                onCastleClicked={() => handleTutorialEvent('castleClicked')}
-                onBattleStarted={() => handleTutorialEvent('battleStarted')}
-              />
+              <HexGrid />
             </div>
           </div>
         </div>
-        
-        {/* Kale İç Ekranı Modal */}
-        {selectedCastle && (
-          <Dialog open={!!selectedCastle} onOpenChange={() => setSelectedCastle(null)}>
-            <DialogContent className="max-w-6xl w-full h-[90vh] p-0">
-              <CastleInterior
-                castle={selectedCastle}
-                onClose={() => setSelectedCastle(null)}
-                onConstructionStarted={() => handleTutorialEvent('constructionStarted')}
-                onConstructionCompleted={() => handleTutorialEvent('constructionCompleted')}
-                onBuildingUpgraded={() => handleTutorialEvent('buildingUpgraded')}
-                onArmyProduced={(totalArmy) => {
-                  if (!tutorialEvents.armyProduced) {
-                    handleTutorialEvent('armyProduced');
-                  }
-                }}
-              />
-            </DialogContent>
-          </Dialog>
-        )}
         
         {/* Savaş Arenası Modal */}
         <BattleArena />

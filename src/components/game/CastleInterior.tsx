@@ -1,283 +1,409 @@
-
-import React, { useState, useEffect } from 'react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { useState, useEffect } from 'react';
+import { useUserResources } from '@/hooks/useUserResources';
+import { useAuth } from '@/hooks/useAuth';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Hammer, Clock, Star, Zap } from 'lucide-react';
 import { toast } from 'sonner';
-import { useGame } from '@/contexts/GameContext';
-import { supabase } from '@/integrations/supabase/client';
-
-interface CastleInteriorProps {
-  castle: {
-    id: string;
-    user_id: string;
-    username: string;
-    q: number;
-    r: number;
-    s: number;
-  };
-  onClose: () => void;
-  onConstructionStarted?: () => void;
-  onConstructionCompleted?: () => void;
-  onBuildingUpgraded?: () => void;
-  onArmyProduced?: (totalArmy: number) => void;
-}
 
 interface Building {
   id: string;
-  type: string;
+  type: 'mine' | 'forge' | 'farm' | 'quarry' | 'warehouse';
   level: number;
-  completion_time: string | null;
+  isBuilding: boolean;
+  buildStartTime?: number;
+  upgradeStartTime?: number;
+  x: number;
+  y: number;
 }
 
-interface ArmyUnit {
-  id: string;
-  type: 'swordsman' | 'archer' | 'cavalry' | 'mage_fire' | 'mage_ice' | 'mage_lightning';
-  count: number;
+interface BuildingType {
+  name: string;
+  description: string;
+  icon: string;
+  baseProduction: number;
+  baseCost: number;
+  resource: string;
 }
 
-export const CastleInterior = ({ 
-  castle, 
-  onClose,
-  onConstructionStarted,
-  onConstructionCompleted,
-  onBuildingUpgraded,
-  onArmyProduced
-}: CastleInteriorProps) => {
-  const { state, dispatch } = useGame();
+const buildingTypes: Record<string, BuildingType> = {
+  mine: {
+    name: 'Altın Madeni',
+    description: 'Altın üretir',
+    icon: '🏭',
+    baseProduction: 100,
+    baseCost: 1000,
+    resource: 'gold'
+  },
+  forge: {
+    name: 'Demir Ocağı', 
+    description: 'Demir üretir',
+    icon: '⚒️',
+    baseProduction: 80,
+    baseCost: 800,
+    resource: 'iron'
+  },
+  farm: {
+    name: 'Çiftlik',
+    description: 'Buğday üretir',
+    icon: '🌾',
+    baseProduction: 120,
+    baseCost: 600,
+    resource: 'wheat'
+  },
+  quarry: {
+    name: 'Taş Ocağı',
+    description: 'Taş üretir',
+    icon: '🪨',
+    baseProduction: 90,
+    baseCost: 700,
+    resource: 'stone'
+  },
+  warehouse: {
+    name: 'Ambar',
+    description: 'Odun üretir',
+    icon: '🪵',
+    baseProduction: 110,
+    baseCost: 500,
+    resource: 'wood'
+  }
+};
+
+const buildSlots = [
+  { id: 1, x: 1, y: 1 },
+  { id: 2, x: 3, y: 1 },
+  { id: 3, x: 5, y: 1 },
+  { id: 4, x: 1, y: 3 },
+  { id: 5, x: 3, y: 3 },
+  { id: 6, x: 5, y: 3 },
+  { id: 7, x: 1, y: 5 },
+  { id: 8, x: 3, y: 5 },
+  { id: 9, x: 5, y: 5 }
+];
+
+interface CastleInteriorProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
+  const { user } = useAuth();
+  const { resources, canAfford, spendResources, updateResources } = useUserResources();
   const [buildings, setBuildings] = useState<Building[]>([]);
-  const [constructing, setConstructing] = useState(false);
-  const [newBuildingType, setNewBuildingType] = useState('');
-  const [upgrading, setUpgrading] = useState(false);
-  const [buildingToUpgrade, setBuildingToUpgrade] = useState('');
-  const [producing, setProducing] = useState(false);
-  const [unitTypeToProduce, setUnitTypeToProduce] = useState<ArmyUnit['type']>('swordsman');
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [selectedBuildingType, setSelectedBuildingType] = useState<string>('');
 
+  // Load buildings from localStorage on component mount
   useEffect(() => {
-    loadBuildings();
-  }, [castle]);
-
-  const loadBuildings = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('buildings')
-        .select('*')
-        .eq('owner_id', castle.user_id);
-
-      if (error) {
-        console.error('Error loading buildings:', error);
-        return;
+    if (user && isOpen) {
+      const savedBuildings = localStorage.getItem(`castle_buildings_${user.id}`);
+      if (savedBuildings) {
+        setBuildings(JSON.parse(savedBuildings));
       }
+    }
+  }, [user, isOpen]);
 
-      // Map the data to match our Building interface
-      const buildingsData: Building[] = (data || []).map(building => ({
-        id: building.id,
-        type: building.type,
-        level: building.level,
-        completion_time: building.completion_time
+  // Save buildings to localStorage whenever buildings change
+  useEffect(() => {
+    if (user && buildings.length > 0) {
+      localStorage.setItem(`castle_buildings_${user.id}`, JSON.stringify(buildings));
+    }
+  }, [buildings, user]);
+
+  // Handle building/upgrade timers
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setBuildings(prev => prev.map(building => {
+        // Check if building construction is complete
+        if (building.isBuilding && building.buildStartTime && 
+            now >= building.buildStartTime + 60000) { // 1 minute = 60000ms
+          toast.success(`${buildingTypes[building.type].name} inşaatı tamamlandı!`);
+          return { ...building, isBuilding: false, buildStartTime: undefined };
+        }
+        
+        // Check if upgrade is complete
+        if (building.upgradeStartTime && 
+            now >= building.upgradeStartTime + 60000) { // 1 minute = 60000ms
+          toast.success(`${buildingTypes[building.type].name} seviye ${building.level + 1} oldu!`);
+          return { 
+            ...building, 
+            level: building.level + 1, 
+            upgradeStartTime: undefined 
+          };
+        }
+        
+        return building;
       }));
+    }, 1000);
 
-      setBuildings(buildingsData);
-    } catch (err) {
-      console.error('Unexpected error:', err);
-    }
+    return () => clearInterval(interval);
+  }, []);
+
+  // Production effect - now updates real resources
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const activeBuildings = buildings.filter(b => !b.isBuilding && !b.upgradeStartTime);
+      if (activeBuildings.length > 0) {
+        const production: any = {};
+        
+        activeBuildings.forEach(building => {
+          const buildingType = buildingTypes[building.type];
+          const productionAmount = Math.floor(buildingType.baseProduction * Math.pow(1.5, building.level) / 60); // per second
+          production[buildingType.resource] = (production[buildingType.resource] || 0) + productionAmount;
+        });
+        
+        if (Object.keys(production).length > 0) {
+          // Convert to full resource update
+          const resourceUpdate = {
+            wood: resources.wood + (production.wood || 0),
+            gold: resources.gold + (production.gold || 0),
+            iron: resources.iron + (production.iron || 0),
+            wheat: resources.wheat + (production.wheat || 0),
+            stone: resources.stone + (production.stone || 0)
+          };
+          updateResources(resourceUpdate);
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [buildings, resources, updateResources]);
+
+  const getBuildingOnSlot = (slotId: number) => {
+    const slot = buildSlots.find(s => s.id === slotId);
+    if (!slot) return null;
+    return buildings.find(b => b.x === slot.x && b.y === slot.y);
   };
 
-  const startConstruction = async (buildingType: string) => {
-    if (!buildingType.trim()) {
-      toast.error('Lütfen bir bina tipi girin');
-      return;
-    }
-
-    setConstructing(true);
-    try {
-      const { data, error } = await supabase
-        .from('buildings')
-        .insert([{
-          owner_id: castle.user_id,
-          type: buildingType,
-          level: 1,
-          completion_time: new Date(Date.now() + 60000).toISOString() // 1 minute
-        }])
-        .select();
-
-      if (error) {
-        console.error('Construction start error:', error);
-        toast.error('İnşaat başlatılamadı: ' + error.message);
-        setConstructing(false);
-        return;
-      }
-
-      toast.success(`${buildingType} inşaatı başladı!`);
-      loadBuildings();
-      setConstructing(false);
-      setNewBuildingType('');
-      
-      // Tutorial event trigger
-      if (onConstructionStarted) {
-        onConstructionStarted();
-      }
-    } catch (err) {
-      console.error('Unexpected error:', err);
-      toast.error('Beklenmeyen bir hata oluştu');
-      setConstructing(false);
-    }
+  const canAffordUpgrade = (building: Building) => {
+    const upgradeCost = buildingTypes[building.type].baseCost * Math.pow(2, building.level);
+    return canAfford(upgradeCost);
   };
 
-  const upgradeBuilding = async (buildingId: string) => {
-    if (!buildingId) {
-      toast.error('Lütfen yükseltilecek binayı seçin');
-      return;
-    }
+  const handleBuildBuilding = async () => {
+    if (!selectedSlot || !selectedBuildingType) return;
+    
+    const slot = buildSlots.find(s => s.id === selectedSlot);
+    if (!slot) return;
 
-    setUpgrading(true);
-    try {
-      const building = buildings.find(b => b.id === buildingId);
-      if (!building) {
-        toast.error('Bina bulunamadı');
-        setUpgrading(false);
-        return;
-      }
+    const buildingType = buildingTypes[selectedBuildingType];
+    const cost = buildingType.baseCost;
 
-      const { data, error } = await supabase
-        .from('buildings')
-        .update({
-          level: building.level + 1
-        })
-        .eq('id', buildingId)
-        .select();
+    const success = await spendResources(cost);
+    if (!success) return;
 
-      if (error) {
-        console.error('Upgrade error:', error);
-        toast.error('Yükseltme yapılamadı: ' + error.message);
-        setUpgrading(false);
-        return;
-      }
-
-      toast.success(`${building.type} seviye ${building.level + 1}'e yükseltildi!`);
-      loadBuildings();
-      setUpgrading(false);
-      setBuildingToUpgrade('');
-      
-      // Tutorial event trigger
-      if (onBuildingUpgraded) {
-        onBuildingUpgraded();
-      }
-    } catch (err) {
-      console.error('Unexpected error:', err);
-      toast.error('Beklenmeyen bir hata oluştu');
-      setUpgrading(false);
-    }
-  };
-
-  const produceUnit = (unitType: ArmyUnit['type']) => {
-    setProducing(true);
-    const newUnit = {
-      id: Math.random().toString(36).substring(7),
-      type: unitType,
-      count: 100,
-      damage: 50,
-      health: 100
+    // Add building
+    const newBuilding: Building = {
+      id: `${selectedBuildingType}_${Date.now()}`,
+      type: selectedBuildingType as any,
+      level: 1,
+      isBuilding: true,
+      buildStartTime: Date.now(),
+      x: slot.x,
+      y: slot.y
     };
 
-    dispatch({ type: 'CREATE_ARMY_UNIT', payload: newUnit });
-    toast.success(`${unitType} üretildi!`);
-    setProducing(false);
-    setUnitTypeToProduce(unitType);
+    setBuildings(prev => [...prev, newBuilding]);
+    setSelectedSlot(null);
+    setSelectedBuildingType('');
     
-    // Tutorial event trigger - check if we reached 1000 total army
-    if (onArmyProduced) {
-      const totalArmy = state.army.reduce((total, unit) => total + unit.count, 0);
-      onArmyProduced(totalArmy);
-    }
+    toast.success(`${buildingType.name} inşaatı başladı! 1 dakika sürecek.`);
   };
 
-  useEffect(() => {
-    // Check for completed constructions
-    const completedBuildings = buildings.filter(
-      building => building.completion_time && new Date(building.completion_time) <= new Date()
-    );
-    
-    if (completedBuildings.length > 0 && onConstructionCompleted) {
-      onConstructionCompleted();
-    }
-  }, [buildings, onConstructionCompleted]);
+  const handleUpgradeBuilding = async (building: Building) => {
+    if (building.upgradeStartTime) return;
+
+    const upgradeCost = buildingTypes[building.type].baseCost * Math.pow(2, building.level);
+    const success = await spendResources(upgradeCost);
+    if (!success) return;
+
+    // Start upgrade
+    setBuildings(prev => prev.map(b => 
+      b.id === building.id 
+        ? { ...b, upgradeStartTime: Date.now() }
+        : b
+    ));
+
+    toast.success(`${buildingTypes[building.type].name} geliştirme başladı! 1 dakika sürecek.`);
+  };
+
+  const getTimeRemaining = (startTime: number) => {
+    const elapsed = Date.now() - startTime;
+    const remaining = 60000 - elapsed; // 1 minute
+    return Math.max(0, Math.ceil(remaining / 1000));
+  };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{castle.username} Kalesi</CardTitle>
-        <CardDescription>Kale içi yönetim ekranı</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="new-building">Yeni Bina İnşa Et</Label>
-          <div className="flex gap-2">
-            <Input
-              id="new-building"
-              value={newBuildingType}
-              onChange={(e) => setNewBuildingType(e.target.value)}
-              placeholder="Bina tipi (örneğin: kışla)"
-            />
-            <Button onClick={() => startConstruction(newBuildingType)} disabled={constructing}>
-              {constructing ? 'İnşa Ediliyor...' : 'İnşa Et'}
-            </Button>
-          </div>
-        </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl w-full h-[90vh] p-0">
+        <DialogHeader className="p-6 pb-0">
+          <DialogTitle className="flex items-center gap-2">
+            🏰 Kale İçi Yönetimi
+            <Badge variant="secondary">
+              Toplam Bina: {buildings.length}/9
+            </Badge>
+          </DialogTitle>
+        </DialogHeader>
 
-        <div className="grid gap-2">
-          <Label htmlFor="upgrade-building">Bina Yükselt</Label>
-          <div className="flex gap-2">
-            <select
-              id="upgrade-building"
-              className="border rounded px-2 py-1"
-              value={buildingToUpgrade}
-              onChange={(e) => setBuildingToUpgrade(e.target.value)}
-            >
-              <option value="">Bina Seç</option>
-              {buildings.map(building => (
-                <option key={building.id} value={building.id}>
-                  {building.type} (Seviye {building.level})
-                </option>
-              ))}
-            </select>
-            <Button onClick={() => upgradeBuilding(buildingToUpgrade)} disabled={upgrading}>
-              {upgrading ? 'Yükseltiliyor...' : 'Yükselt'}
-            </Button>
-          </div>
-        </div>
+        <div className="flex-1 overflow-auto p-6">
+          {/* Build Grid */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            {buildSlots.map(slot => {
+              const building = getBuildingOnSlot(slot.id);
+              const isSelected = selectedSlot === slot.id;
 
-        <div className="grid gap-2">
-          <Label htmlFor="produce-unit">Asker Üret</Label>
-          <div className="flex gap-2">
-            <select
-              id="produce-unit"
-              className="border rounded px-2 py-1"
-              value={unitTypeToProduce}
-              onChange={(e) => setUnitTypeToProduce(e.target.value as ArmyUnit['type'])}
-            >
-              <option value="swordsman">Kılıçlı</option>
-              <option value="archer">Okçu</option>
-              <option value="cavalry">Atlı</option>
-              <option value="mage_fire">Ateş Büyücüsü</option>
-              <option value="mage_ice">Buz Büyücüsü</option>
-              <option value="mage_lightning">Yıldırım Büyücüsü</option>
-            </select>
-            <Button onClick={() => produceUnit(unitTypeToProduce)} disabled={producing}>
-              {producing ? 'Üretiliyor...' : 'Üret'}
-            </Button>
+              return (
+                <Card 
+                  key={slot.id}
+                  className={`relative h-32 cursor-pointer transition-all ${
+                    isSelected ? 'ring-2 ring-blue-500' : ''
+                  } ${building ? 'bg-green-50' : 'bg-gray-50 border-dashed'}`}
+                  onClick={() => !building && setSelectedSlot(slot.id)}
+                >
+                  <CardContent className="p-2 h-full flex flex-col items-center justify-center">
+                    {building ? (
+                      <>
+                        <div className="text-2xl mb-1">
+                          {buildingTypes[building.type].icon}
+                        </div>
+                        <div className="text-xs font-medium text-center">
+                          {buildingTypes[building.type].name}
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          Level {building.level}
+                        </Badge>
+                        
+                        {building.isBuilding && building.buildStartTime && (
+                          <div className="mt-1 text-xs text-orange-600 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {getTimeRemaining(building.buildStartTime)}s
+                          </div>
+                        )}
+                        
+                        {building.upgradeStartTime && (
+                          <div className="mt-1 text-xs text-blue-600 flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            {getTimeRemaining(building.upgradeStartTime)}s
+                          </div>
+                        )}
+                        
+                        {!building.isBuilding && !building.upgradeStartTime && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-1 text-xs h-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUpgradeBuilding(building);
+                            }}
+                            disabled={!canAffordUpgrade(building)}
+                          >
+                            <Star className="w-3 h-3 mr-1" />
+                            Geliştir
+                          </Button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <Hammer className="w-8 h-8 text-gray-400 mb-2" />
+                        <div className="text-xs text-gray-500">Boş Alan</div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
+
+          {/* Building Selection */}
+          {selectedSlot && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Hammer className="w-5 h-5" />
+                  Bina Seç
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                  {Object.entries(buildingTypes).map(([type, info]) => (
+                    <Button
+                      key={type}
+                      variant={selectedBuildingType === type ? "default" : "outline"}
+                      className="h-20 flex-col"
+                      onClick={() => setSelectedBuildingType(type)}
+                    >
+                      <div className="text-2xl mb-1">{info.icon}</div>
+                      <div className="text-xs">{info.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {info.baseCost} kaynak
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+                
+                {selectedBuildingType && (
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">
+                        {buildingTypes[selectedBuildingType].name}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {buildingTypes[selectedBuildingType].description} - 
+                        Saatlik: {buildingTypes[selectedBuildingType].baseProduction}
+                      </div>
+                    </div>
+                    <Button
+                      onClick={handleBuildBuilding}
+                      disabled={!canAfford(buildingTypes[selectedBuildingType].baseCost)}
+                    >
+                      <Hammer className="w-4 h-4 mr-2" />
+                      İnşa Et
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Production Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="w-5 h-5" />
+                Aktif Üretim
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-5 gap-4">
+                {Object.entries(buildingTypes).map(([type, info]) => {
+                  const activeBuildings = buildings.filter(b => 
+                    b.type === type && !b.isBuilding && !b.upgradeStartTime
+                  );
+                  const totalProduction = activeBuildings.reduce((sum, b) => 
+                    sum + Math.floor(info.baseProduction * Math.pow(1.5, b.level)), 0
+                  );
+
+                  return (
+                    <div key={type} className="text-center">
+                      <div className="text-2xl mb-1">{info.icon}</div>
+                      <div className="text-xs font-medium">
+                        {activeBuildings.length} Bina
+                      </div>
+                      <div className="text-xs text-green-600 font-medium">
+                        +{totalProduction}/saat
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         </div>
-        
-        <Button variant="outline" onClick={onClose}>Kapat</Button>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 };
