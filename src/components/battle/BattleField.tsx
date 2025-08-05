@@ -627,28 +627,28 @@ export const BattleField = () => {
   if (!state.battleState.inBattle) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl w-[96vw] h-[96vh] flex flex-col shadow-2xl">
+    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-2">
+      <div className="bg-white rounded-xl w-full h-full max-w-[98vw] max-h-[98vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-red-50 rounded-t-xl flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-bold text-gray-800">🏰 Savaş Arenası</h2>
-            <Badge variant="secondary">
+        <div className="p-2 sm:p-4 border-b bg-gradient-to-r from-blue-50 to-red-50 rounded-t-xl flex justify-between items-center flex-wrap gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800">🏰 Savaş Arenası</h2>
+            <Badge variant="secondary" className="text-xs sm:text-sm">
               {Math.floor(battleTime / 60)}:{String(battleTime % 60).padStart(2, '0')}
             </Badge>
             {gameResult && (
-              <Badge variant={gameResult === 'win' ? 'default' : 'destructive'}>
+              <Badge variant={gameResult === 'win' ? 'default' : 'destructive'} className="text-xs sm:text-sm">
                 {gameResult === 'win' ? '🎉 KAZANDIN!' : '💀 KAYBETTİN!'}
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="bg-purple-50">⚡ {mana}/10</Badge>
-            <Badge variant="outline" className="bg-blue-50">
-              📦 Kalan Ordu: {getTotalPlayerArmyRemaining()}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <Badge variant="outline" className="bg-purple-50 text-xs sm:text-sm">⚡ {mana}/10</Badge>
+            <Badge variant="outline" className="bg-blue-50 text-xs sm:text-sm">
+              📦 Kalan: {getTotalPlayerArmyRemaining()}
             </Badge>
-            <Badge variant="outline" className="bg-red-50">
-              🔴 Düşman Ordusu: {getTotalEnemyArmyRemaining()}
+            <Badge variant="outline" className="bg-red-50 text-xs sm:text-sm">
+              🔴 Düşman: {getTotalEnemyArmyRemaining()}
             </Badge>
             <Button onClick={endBattle} variant="outline" size="sm">
               <X className="w-4 h-4" />
@@ -656,49 +656,49 @@ export const BattleField = () => {
           </div>
         </div>
 
-        <div className="flex-1 flex">
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
           {/* Left Panel */}
-          <div className="w-80 border-r p-4 space-y-4 bg-gray-50/50">
+          <div className="w-full lg:w-72 xl:w-80 border-b lg:border-b-0 lg:border-r p-2 sm:p-4 space-y-3 bg-gray-50/50 overflow-y-auto max-h-[40vh] lg:max-h-none">
             {/* Castle Status */}
             <Card className="shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">🏰 Kale Durumu</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm sm:text-base">🏰 Kale Durumu</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm font-medium">
+              <CardContent className="space-y-3">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs sm:text-sm font-medium">
                     <span className="text-blue-700">🔵 Senin Kalen</span>
                     <span>{playerCastle?.health}/{playerCastle?.maxHealth}</span>
                   </div>
-                  <Progress value={playerCastle ? (playerCastle.health / playerCastle.maxHealth) * 100 : 0} />
+                  <Progress value={playerCastle ? (playerCastle.health / playerCastle.maxHealth) * 100 : 0} className="h-2" />
                 </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm font-medium">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs sm:text-sm font-medium">
                     <span className="text-red-700">🔴 Düşman Kalesi</span>
                     <span>{enemyCastle?.health}/{enemyCastle?.maxHealth}</span>
                   </div>
-                  <Progress value={enemyCastle ? (enemyCastle.health / enemyCastle.maxHealth) * 100 : 100} />
+                  <Progress value={enemyCastle ? (enemyCastle.health / enemyCastle.maxHealth) * 100 : 100} className="h-2" />
                 </div>
               </CardContent>
             </Card>
 
             {/* Player Army Status */}
             <Card className="shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">⚔️ Mevcut Ordun</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm sm:text-base">⚔️ Mevcut Ordun</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-1">
                 {Object.entries(playerArmyRemaining).map(([unitType, count]) => (
-                  <div key={unitType} className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
+                  <div key={unitType} className="flex justify-between items-center text-xs sm:text-sm">
+                    <div className="flex items-center gap-1 sm:gap-2">
                       <span>{UNIT_CONFIGS[unitType as keyof typeof UNIT_CONFIGS]?.icon}</span>
-                      <span>{unitType}</span>
+                      <span className="truncate">{unitType}</span>
                     </div>
-                    <Badge variant={count > 0 ? "default" : "secondary"}>{count}</Badge>
+                    <Badge variant={count > 0 ? "default" : "secondary"} className="text-xs">{count}</Badge>
                   </div>
                 ))}
                 {getTotalPlayerArmyRemaining() === 0 && (
-                  <div className="text-center text-red-600 text-sm font-medium">
+                  <div className="text-center text-red-600 text-xs sm:text-sm font-medium">
                     ❌ Ordun Tükendi!
                   </div>
                 )}
@@ -707,16 +707,16 @@ export const BattleField = () => {
 
             {/* Unit Deployment */}
             <Card className="shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">🚀 Asker Gönderimi</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm sm:text-base">🚀 Asker Gönderimi</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 {(['left', 'center', 'right'] as const).map(path => (
-                  <div key={path} className="border rounded-lg p-3 bg-white/60">
-                    <div className="text-sm font-semibold mb-3 text-center">
-                      {path === 'left' ? '🔵 Sol Yol' : path === 'center' ? '🟢 Orta Yol' : '🔴 Sağ Yol'}
+                  <div key={path} className="border rounded-lg p-2 bg-white/60">
+                    <div className="text-xs sm:text-sm font-semibold mb-2 text-center">
+                      {path === 'left' ? '🔵 Sol' : path === 'center' ? '🟢 Orta' : '🔴 Sağ'}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-2 gap-1">
                       {Object.entries(UNIT_CONFIGS).map(([unitType, config]) => {
                         const hasUnits = playerArmyRemaining[unitType] > 0;
                         return (
@@ -726,9 +726,9 @@ export const BattleField = () => {
                             variant={hasUnits ? "outline" : "secondary"}
                             onClick={() => deployUnit(unitType as keyof typeof UNIT_CONFIGS, path)}
                             disabled={mana < config.cost || !battleActive || !hasUnits}
-                            className="h-16 flex flex-col gap-1"
+                            className="h-12 sm:h-16 flex flex-col gap-0.5 p-1 text-xs"
                           >
-                            <span className="text-lg">{config.icon}</span>
+                            <span className="text-sm sm:text-lg">{config.icon}</span>
                             <span className="text-xs font-bold text-purple-600">{config.cost}⚡</span>
                             <span className="text-xs text-muted-foreground">
                               {playerArmyRemaining[unitType] || 0}
@@ -746,38 +746,38 @@ export const BattleField = () => {
             {!battleActive ? (
               <Button 
                 onClick={startBattle} 
-                className="w-full h-12 text-lg bg-green-600 hover:bg-green-700" 
+                className="w-full h-10 sm:h-12 text-sm sm:text-lg bg-green-600 hover:bg-green-700" 
                 size="lg"
                 disabled={getTotalPlayerArmyRemaining() === 0}
               >
                 {getTotalPlayerArmyRemaining() === 0 ? '❌ Ordu Yok' : '🚀 Savaşı Başlat'}
               </Button>
             ) : (
-              <Button onClick={endBattle} variant="destructive" className="w-full h-12 text-lg" size="lg">
+              <Button onClick={endBattle} variant="destructive" className="w-full h-10 sm:h-12 text-sm sm:text-lg" size="lg">
                 🏃‍♂️ Savaştan Çık
               </Button>
             )}
           </div>
 
           {/* Battle Arena */}
-          <div className="flex-1 relative bg-gradient-to-b from-sky-200 via-green-200 to-yellow-200 overflow-hidden">
+          <div className="flex-1 relative bg-gradient-to-b from-sky-200 via-green-200 to-yellow-200 overflow-hidden min-h-[60vh] lg:min-h-0">
             <div className="absolute inset-0 bg-gradient-radial from-green-300/30 via-green-400/20 to-green-500/10" />
             
-            <div className="absolute inset-6">
+            <div className="absolute inset-2 sm:inset-6">
               {/* Enemy Castle */}
-              <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
+              <div className="absolute top-2 sm:top-4 left-1/2 transform -translate-x-1/2">
                 <div className="flex flex-col items-center">
-                  <div className="w-32 h-24 bg-gradient-to-b from-red-600 to-red-800 rounded-lg shadow-xl border-2 border-red-700 flex items-center justify-center">
-                    <span className="text-white text-3xl">🏰</span>
+                  <div className="w-20 h-16 sm:w-32 sm:h-24 bg-gradient-to-b from-red-600 to-red-800 rounded-lg shadow-xl border-2 border-red-700 flex items-center justify-center">
+                    <span className="text-white text-xl sm:text-3xl">🏰</span>
                   </div>
-                  <div className="w-40 h-4 bg-gray-300 rounded-full mt-2 shadow-inner">
+                  <div className="w-24 sm:w-40 h-2 sm:h-4 bg-gray-300 rounded-full mt-2 shadow-inner">
                     <div 
                       className="h-full bg-gradient-to-r from-red-400 to-red-600 rounded-full transition-all duration-500"
                       style={{ width: `${enemyCastle ? (enemyCastle.health / enemyCastle.maxHealth) * 100 : 0}%` }}
                     />
                   </div>
-                  <div className="text-sm font-bold mt-1 text-red-800">DÜŞMAN KALESİ</div>
-                  <div className="text-sm text-gray-600">{enemyCastle?.health}/{enemyCastle?.maxHealth}</div>
+                  <div className="text-xs sm:text-sm font-bold mt-1 text-red-800">DÜŞMAN KALESİ</div>
+                  <div className="text-xs sm:text-sm text-gray-600">{enemyCastle?.health}/{enemyCastle?.maxHealth}</div>
                 </div>
               </div>
 
@@ -789,15 +789,15 @@ export const BattleField = () => {
                     key={tower.id}
                     className="absolute transform -translate-x-1/2 -translate-y-1/2"
                     style={{
-                      left: `${tower.position.x}px`,
-                      top: `${tower.position.y}px`
+                      left: `${Math.min(Math.max(tower.position.x * 0.7, 50), window.innerWidth < 768 ? window.innerWidth * 0.5 - 100 : tower.position.x)}px`,
+                      top: `${Math.min(Math.max(tower.position.y * 0.8, 80), tower.position.y)}px`
                     }}
                   >
                     <div className="flex flex-col items-center">
-                      <div className="w-20 h-20 bg-gradient-to-b from-red-500 to-red-700 rounded-full shadow-lg border border-red-600 flex items-center justify-center">
-                        <span className="text-white text-lg">🗼</span>
+                      <div className="w-12 h-12 sm:w-20 sm:h-20 bg-gradient-to-b from-red-500 to-red-700 rounded-full shadow-lg border border-red-600 flex items-center justify-center">
+                        <span className="text-white text-sm sm:text-lg">🗼</span>
                       </div>
-                      <div className="w-24 h-2 bg-gray-300 rounded-full mt-1">
+                      <div className="w-16 sm:w-24 h-1 sm:h-2 bg-gray-300 rounded-full mt-1">
                         <div 
                           className="h-full bg-red-500 rounded-full transition-all duration-300"
                           style={{ width: `${(tower.health / tower.maxHealth) * 100}%` }}
@@ -815,15 +815,15 @@ export const BattleField = () => {
                     key={catapult.id}
                     className="absolute transform -translate-x-1/2 -translate-y-1/2"
                     style={{
-                      left: `${catapult.position.x}px`,
-                      top: `${catapult.position.y}px`
+                      left: `${Math.min(Math.max(catapult.position.x * 0.7, 50), window.innerWidth < 768 ? window.innerWidth * 0.5 - 100 : catapult.position.x)}px`,
+                      top: `${Math.min(Math.max(catapult.position.y * 0.8, 100), catapult.position.y)}px`
                     }}
                   >
                     <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 bg-gradient-to-b from-orange-500 to-orange-700 rounded-lg shadow-lg border border-orange-600 flex items-center justify-center">
-                        <span className="text-white text-sm">🎯</span>
+                      <div className="w-10 h-10 sm:w-16 sm:h-16 bg-gradient-to-b from-orange-500 to-orange-700 rounded-lg shadow-lg border border-orange-600 flex items-center justify-center">
+                        <span className="text-white text-xs sm:text-sm">🎯</span>
                       </div>
-                      <div className="w-20 h-2 bg-gray-300 rounded-full mt-1">
+                      <div className="w-12 sm:w-20 h-1 sm:h-2 bg-gray-300 rounded-full mt-1">
                         <div 
                           className="h-full bg-orange-500 rounded-full transition-all duration-300"
                           style={{ width: `${(catapult.health / catapult.maxHealth) * 100}%` }}
@@ -834,18 +834,18 @@ export const BattleField = () => {
                 ))}
 
               {/* Player Castle */}
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+              <div className="absolute bottom-2 sm:bottom-4 left-1/2 transform -translate-x-1/2">
                 <div className="flex flex-col items-center">
-                  <div className="text-sm font-bold mb-1 text-blue-800">SENİN KALEN</div>
-                  <div className="text-sm text-gray-600 mb-2">{playerCastle?.health}/{playerCastle?.maxHealth}</div>
-                  <div className="w-40 h-4 bg-gray-300 rounded-full mb-2 shadow-inner">
+                  <div className="text-xs sm:text-sm font-bold mb-1 text-blue-800">SENİN KALEN</div>
+                  <div className="text-xs sm:text-sm text-gray-600 mb-2">{playerCastle?.health}/{playerCastle?.maxHealth}</div>
+                  <div className="w-24 sm:w-40 h-2 sm:h-4 bg-gray-300 rounded-full mb-2 shadow-inner">
                     <div 
                       className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-500"
                       style={{ width: `${playerCastle ? (playerCastle.health / playerCastle.maxHealth) * 100 : 0}%` }}
                     />
                   </div>
-                  <div className="w-32 h-24 bg-gradient-to-b from-blue-600 to-blue-800 rounded-lg shadow-xl border-2 border-blue-700 flex items-center justify-center">
-                    <span className="text-white text-3xl">🏰</span>
+                  <div className="w-20 h-16 sm:w-32 sm:h-24 bg-gradient-to-b from-blue-600 to-blue-800 rounded-lg shadow-xl border-2 border-blue-700 flex items-center justify-center">
+                    <span className="text-white text-xl sm:text-3xl">🏰</span>
                   </div>
                 </div>
               </div>
@@ -858,15 +858,15 @@ export const BattleField = () => {
                     key={tower.id}
                     className="absolute transform -translate-x-1/2 -translate-y-1/2"
                     style={{
-                      left: `${tower.position.x}px`,
-                      top: `${tower.position.y}px`
+                      left: `${Math.min(Math.max(tower.position.x * 0.7, 50), window.innerWidth < 768 ? window.innerWidth * 0.5 - 100 : tower.position.x)}px`,
+                      top: `${Math.max(tower.position.y * 0.8, tower.position.y)}px`
                     }}
                   >
                     <div className="flex flex-col items-center">
-                      <div className="w-20 h-20 bg-gradient-to-b from-blue-500 to-blue-700 rounded-full shadow-lg border border-blue-600 flex items-center justify-center">
-                        <span className="text-white text-lg">🗼</span>
+                      <div className="w-12 h-12 sm:w-20 sm:h-20 bg-gradient-to-b from-blue-500 to-blue-700 rounded-full shadow-lg border border-blue-600 flex items-center justify-center">
+                        <span className="text-white text-sm sm:text-lg">🗼</span>
                       </div>
-                      <div className="w-24 h-2 bg-gray-300 rounded-full mt-1">
+                      <div className="w-16 sm:w-24 h-1 sm:h-2 bg-gray-300 rounded-full mt-1">
                         <div 
                           className="h-full bg-blue-500 rounded-full transition-all duration-300"
                           style={{ width: `${(tower.health / tower.maxHealth) * 100}%` }}
@@ -884,15 +884,15 @@ export const BattleField = () => {
                     key={catapult.id}
                     className="absolute transform -translate-x-1/2 -translate-y-1/2"
                     style={{
-                      left: `${catapult.position.x}px`,
-                      top: `${catapult.position.y}px`
+                      left: `${Math.min(Math.max(catapult.position.x * 0.7, 50), window.innerWidth < 768 ? window.innerWidth * 0.5 - 100 : catapult.position.x)}px`,
+                      top: `${Math.max(catapult.position.y * 0.8, catapult.position.y)}px`
                     }}
                   >
                     <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 bg-gradient-to-b from-blue-400 to-blue-600 rounded-lg shadow-lg border border-blue-500 flex items-center justify-center">
-                        <span className="text-white text-sm">🎯</span>
+                      <div className="w-10 h-10 sm:w-16 sm:h-16 bg-gradient-to-b from-blue-400 to-blue-600 rounded-lg shadow-lg border border-blue-500 flex items-center justify-center">
+                        <span className="text-white text-xs sm:text-sm">🎯</span>
                       </div>
-                      <div className="w-20 h-2 bg-gray-300 rounded-full mt-1">
+                      <div className="w-12 sm:w-20 h-1 sm:h-2 bg-gray-300 rounded-full mt-1">
                         <div 
                           className="h-full bg-blue-500 rounded-full transition-all duration-300"
                           style={{ width: `${(catapult.health / catapult.maxHealth) * 100}%` }}
@@ -903,62 +903,65 @@ export const BattleField = () => {
                 ))}
 
               {/* Units */}
-              {units.map(unit => (
-                <div
-                  key={unit.id}
-                  className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200"
-                  style={{
-                    left: `${unit.position.x}px`,
-                    top: `${unit.position.y}px`,
-                    zIndex: 20
-                  }}
-                >
-                  <div className={`${
-                    unit.team === 'player' 
-                      ? 'shadow-lg shadow-blue-500/40 border border-blue-400 bg-blue-100/90' 
-                      : 'shadow-lg shadow-red-500/40 border border-red-400 bg-red-100/90'
-                    } rounded-lg p-1.5`}>
-                    <div className="text-xl text-center mb-1">
-                      {UNIT_CONFIGS[unit.type].icon}
-                    </div>
-                    <div className="w-12 h-2 bg-gray-400 rounded-full">
-                      <div 
-                        className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-200"
-                        style={{ width: `${(unit.health / unit.maxHealth) * 100}%` }}
-                      />
-                    </div>
-                    {unit.state !== 'moving' && (
-                      <div className="text-xs text-center font-bold mt-1">
-                        {getUnitStateIcon(unit)}
+              {units.map(unit => {
+                const scaleFactor = window.innerWidth < 768 ? 0.7 : 1;
+                return (
+                  <div
+                    key={unit.id}
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200"
+                    style={{
+                      left: `${Math.min(Math.max(unit.position.x * scaleFactor, 30), (window.innerWidth < 768 ? window.innerWidth * 0.5 : unit.position.x))}px`,
+                      top: `${Math.min(Math.max(unit.position.y * scaleFactor, 60), unit.position.y)}px`,
+                      zIndex: 20
+                    }}
+                  >
+                    <div className={`${
+                      unit.team === 'player' 
+                        ? 'shadow-lg shadow-blue-500/40 border border-blue-400 bg-blue-100/90' 
+                        : 'shadow-lg shadow-red-500/40 border border-red-400 bg-red-100/90'
+                      } rounded-lg p-1`}>
+                      <div className="text-sm sm:text-xl text-center mb-1">
+                        {UNIT_CONFIGS[unit.type].icon}
                       </div>
-                    )}
+                      <div className="w-8 sm:w-12 h-1 sm:h-2 bg-gray-400 rounded-full">
+                        <div 
+                          className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-200"
+                          style={{ width: `${(unit.health / unit.maxHealth) * 100}%` }}
+                        />
+                      </div>
+                      {unit.state !== 'moving' && (
+                        <div className="text-xs text-center font-bold mt-1">
+                          {getUnitStateIcon(unit)}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Statistics */}
-            <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm border rounded-lg p-3 text-sm shadow-lg">
-              <div className="font-bold mb-2 text-gray-800">📊 İstatistikler</div>
-              <div className="space-y-1 text-xs">
+            <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 bg-white/90 backdrop-blur-sm border rounded-lg p-2 sm:p-3 text-xs sm:text-sm shadow-lg">
+              <div className="font-bold mb-1 sm:mb-2 text-gray-800">📊 İstatistikler</div>
+              <div className="space-y-0.5 sm:space-y-1 text-xs">
                 <div className="flex justify-between">
-                  <span>Sahada Asker:</span>
+                  <span>Sahada:</span>
                   <span className="font-semibold">{units.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Mavi Takım:</span>
+                  <span>Mavi:</span>
                   <span className="font-semibold text-blue-600">{units.filter(u => u.team === 'player').length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Kırmızı Takım:</span>
+                  <span>Kırmızı:</span>
                   <span className="font-semibold text-red-600">{units.filter(u => u.team === 'enemy').length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Kalan Ordun:</span>
+                  <span>Kalan:</span>
                   <span className="font-semibold text-blue-800">{getTotalPlayerArmyRemaining()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Düşman Ordusu:</span>
+                  <span>Düşman:</span>
                   <span className="font-semibold text-red-800">{getTotalEnemyArmyRemaining()}</span>
                 </div>
               </div>
@@ -967,19 +970,19 @@ export const BattleField = () => {
             {/* Win/Lose notification */}
             {gameResult && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                <div className="bg-white rounded-xl p-8 shadow-2xl text-center">
-                  <div className="text-6xl mb-4">
+                <div className="bg-white rounded-xl p-4 sm:p-8 shadow-2xl text-center mx-4">
+                  <div className="text-4xl sm:text-6xl mb-2 sm:mb-4">
                     {gameResult === 'win' ? '🎉' : '💀'}
                   </div>
-                  <div className="text-2xl font-bold mb-4">
+                  <div className="text-lg sm:text-2xl font-bold mb-2 sm:mb-4">
                     {gameResult === 'win' ? 'KAZANDIN!' : 'KAYBETTİN!'}
                   </div>
                   {gameResult === 'win' && (
-                    <div className="text-sm text-gray-600">
+                    <div className="text-xs sm:text-sm text-gray-600">
                       Ödüller: +1000 Altın, +500 Odun, +500 Demir, +300 Buğday, +300 Taş
                     </div>
                   )}
-                  <div className="text-sm text-gray-500 mt-2">
+                  <div className="text-xs sm:text-sm text-gray-500 mt-2">
                     Ana haritaya dönülüyor...
                   </div>
                 </div>
