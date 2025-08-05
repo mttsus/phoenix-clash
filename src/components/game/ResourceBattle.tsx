@@ -30,10 +30,9 @@ interface ResourceBattleProps {
 }
 
 export const ResourceBattle = ({ region, isOpen, onClose, onBattleComplete }: ResourceBattleProps) => {
-  const { state } = useGame();
+  const { state, dispatch } = useGame();
   const { user } = useAuth();
   const [isBattling, setIsBattling] = useState(false);
-  const [battleLog, setBattleLog] = useState<string[]>([]);
 
   if (!region) return null;
 
@@ -45,83 +44,25 @@ export const ResourceBattle = ({ region, isOpen, onClose, onBattleComplete }: Re
     stone: '🪨'
   };
 
-  const startBattle = async () => {
+  const startLiveBattle = async () => {
     if (!user || state.army.length === 0) {
       toast.error('Savaş için ordunuz olmalı!');
       return;
     }
 
-    setIsBattling(true);
-    setBattleLog([]);
-    
-    // Calculate total army power
-    const totalArmyPower = state.army.reduce((total, unit) => total + (unit.damage * unit.count), 0);
-    const armyCount = state.army.reduce((total, unit) => total + unit.count, 0);
-    
-    // Simple battle calculation
-    const damageDealt = Math.floor(totalArmyPower * (0.8 + Math.random() * 0.4));
-    const newBossHealth = Math.max(0, region.boss_health - damageDealt);
-    const victory = newBossHealth <= 0;
-    
-    const log = [
-      `${armyCount} asker ile saldırıya geçtiniz!`,
-      `Boss'a ${damageDealt} hasar verdiniz!`,
-      victory ? '🎉 Boss\'u yendiniz! Bölge artık sizin!' : `Boss'un kalan canı: ${newBossHealth}`
-    ];
-    
-    setBattleLog(log);
-
-    try {
-      // Save battle result
-      const { error: battleError } = await supabase
-        .from('resource_battles')
-        .insert({
-          region_id: region.id,
-          attacker_id: user.id,
-          army_count: armyCount,
-          damage_dealt: damageDealt,
-          boss_health_remaining: newBossHealth,
-          victory: victory,
-          battle_log: log
-        });
-
-      if (battleError) {
-        console.error('Battle log save error:', battleError);
+    // Start the live battle in the arena
+    dispatch({
+      type: 'START_BATTLE',
+      payload: {
+        battleType: 'resource',
+        resourceRegion: region,
+        playerArmy: [...state.army]
       }
+    });
 
-      // Update region
-      const updateData: any = {
-        boss_health: newBossHealth
-      };
-
-      if (victory) {
-        updateData.owner_id = user.id;
-        updateData.captured_at = new Date().toISOString();
-        updateData.boss_health = region.max_boss_health; // Reset for next attacker
-      }
-
-      const { error: updateError } = await supabase
-        .from('resource_regions')
-        .update(updateData)
-        .eq('id', region.id);
-
-      if (updateError) {
-        console.error('Region update error:', updateError);
-        toast.error('Bölge güncellenemedi: ' + updateError.message);
-      } else {
-        if (victory) {
-          toast.success(`🎉 ${region.resource_type.toUpperCase()} bölgesini ele geçirdiniz! +${region.production_bonus}/saat üretim bonusu!`);
-        } else {
-          toast.info(`Boss'a ${damageDealt} hasar verdiniz. Kalan can: ${newBossHealth}`);
-        }
-        onBattleComplete();
-      }
-    } catch (err) {
-      console.error('Battle error:', err);
-      toast.error('Savaş sırasında bir hata oluştu');
-    } finally {
-      setIsBattling(false);
-    }
+    // Close the dialog and let the battle arena handle the rest
+    onClose();
+    toast.success('Canlı savaş başlıyor! Savaş alanına yönlendiriliyorsunuz...');
   };
 
   const isOwned = region.owner_id === user?.id;
@@ -183,32 +124,23 @@ export const ResourceBattle = ({ region, isOpen, onClose, onBattleComplete }: Re
             )}
           </div>
 
-          {/* Battle Log */}
-          {battleLog.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Savaş Raporu</h4>
-              <div className="p-3 bg-gray-50 border rounded-lg space-y-1">
-                {battleLog.map((log, index) => (
-                  <p key={index} className="text-sm">{log}</p>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Live Battle Info */}
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 className="text-sm font-medium text-blue-800 mb-2">🎮 Canlı Savaş Modu</h4>
+            <p className="text-xs text-blue-700">
+              Boss ile canlı savaş alanında karşılaşacaksınız. Ordunuzun boss'la savaştığını gerçek zamanlı izleyebileceksiniz!
+            </p>
+          </div>
 
           {/* Battle Button */}
           <div className="flex gap-2">
             <Button
-              onClick={startBattle}
+              onClick={startLiveBattle}
               disabled={isBattling || state.army.length === 0 || (isOwned && region.boss_health === region.max_boss_health)}
               className="flex-1"
               variant={isOwned ? "outline" : "default"}
             >
-              {isBattling ? (
-                <>
-                  <Shield className="w-4 h-4 mr-2 animate-spin" />
-                  Savaşıyor...
-                </>
-              ) : isOwned ? (
+              {isOwned ? (
                 <>
                   <Crown className="w-4 h-4 mr-2" />
                   Bölgeniz
@@ -216,7 +148,7 @@ export const ResourceBattle = ({ region, isOpen, onClose, onBattleComplete }: Re
               ) : (
                 <>
                   <Sword className="w-4 h-4 mr-2" />
-                  Savaş
+                  Canlı Savaş Başlat
                 </>
               )}
             </Button>

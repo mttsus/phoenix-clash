@@ -27,6 +27,7 @@ export interface HexTile {
 
 export interface BattleState {
   inBattle: boolean;
+  battleType?: 'pvp' | 'resource';
   enemy?: {
     id: string;
     user_id: string;
@@ -34,6 +35,16 @@ export interface BattleState {
     q: number;
     r: number;
     s: number;
+  };
+  resourceRegion?: {
+    id: string;
+    q: number;
+    r: number;
+    s: number;
+    resource_type: string;
+    boss_health: number;
+    max_boss_health: number;
+    production_bonus: number;
   };
   playerArmy: ArmyUnit[];
 }
@@ -79,7 +90,7 @@ type GameAction =
   | { type: 'BATTLE_RESULT'; payload: { won: boolean } }
   | { type: 'ENTER_RESTRUCTURING_MODE' }
   | { type: 'EXIT_RESTRUCTURING_MODE' }
-  | { type: 'START_BATTLE'; payload: { enemy: any; playerArmy: ArmyUnit[] } }
+  | { type: 'START_BATTLE'; payload: { enemy?: any; resourceRegion?: any; playerArmy: ArmyUnit[]; battleType: 'pvp' | 'resource' } }
   | { type: 'END_BATTLE' };
 
 function gameReducer(state: GameState, action: GameAction): GameState {
@@ -135,7 +146,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         battleState: {
           inBattle: true,
+          battleType: action.payload.battleType,
           enemy: action.payload.enemy,
+          resourceRegion: action.payload.resourceRegion,
           playerArmy: action.payload.playerArmy
         }
       };
