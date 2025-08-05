@@ -482,7 +482,8 @@ export const HexGrid = () => {
       type: 'START_BATTLE', 
       payload: { 
         enemy: enemy,
-        playerArmy: state.army 
+        playerArmy: state.army,
+        battleType: 'pvp'
       } 
     });
   };
