@@ -24,6 +24,15 @@ interface Tower {
   lastAttack: number;
 }
 
+interface Catapult {
+  id: string;
+  team: 'player' | 'enemy';
+  position: { x: number; y: number };
+  lastShot: number;
+  damage: number;
+  range: number;
+}
+
 interface Unit {
   id: string;
   type: 'swordsman' | 'archer' | 'cavalry' | 'mage_fire';
@@ -50,9 +59,9 @@ const UNIT_CONFIGS = {
 
 // Improved path configurations for cleaner layout
 const PATH_CONFIGS = {
-  left: { startX: 200, centerX: 250, targetX: 300 },
+  left: { startX: 200, centerX: 250, targetX: 320 },
   center: { startX: 400, centerX: 400, targetX: 400 },
-  right: { startX: 600, centerX: 550, targetX: 500 }
+  right: { startX: 600, centerX: 550, targetX: 480 }
 };
 
 export const BattleField = () => {
@@ -62,13 +71,14 @@ export const BattleField = () => {
   const [units, setUnits] = useState<Unit[]>([]);
   const [towers, setTowers] = useState<Tower[]>([]);
   const [castles, setCastles] = useState<Castle[]>([]);
+  const [catapults, setCatapults] = useState<Catapult[]>([]);
   const [battleTime, setBattleTime] = useState(0);
   const [gameResult, setGameResult] = useState<'win' | 'lose' | null>(null);
 
-  // Initialize single castle system with defense towers
+  // Initialize battle system
   useEffect(() => {
     const initialTowers: Tower[] = [
-      // Player defense towers (symmetrically positioned)
+      // Player defense towers
       {
         id: 'player-tower-left',
         team: 'player',
@@ -87,7 +97,7 @@ export const BattleField = () => {
         position: { x: 480, y: 480 },
         lastAttack: 0
       },
-      // Enemy defense towers (symmetrically positioned)
+      // Enemy defense towers
       {
         id: 'enemy-tower-left',
         team: 'enemy',
@@ -125,6 +135,26 @@ export const BattleField = () => {
         position: { x: 400, y: 150 }
       }
     ]);
+
+    // Initialize catapults
+    setCatapults([
+      {
+        id: 'player-catapult',
+        team: 'player',
+        position: { x: 300, y: 500 },
+        lastShot: 0,
+        damage: 300,
+        range: 250
+      },
+      {
+        id: 'enemy-catapult',
+        team: 'enemy',
+        position: { x: 500, y: 200 },
+        lastShot: 0,
+        damage: 300,
+        range: 250
+      }
+    ]);
   }, []);
 
   // Main battle loop
@@ -143,23 +173,82 @@ export const BattleField = () => {
       moveAndFightUnits();
       
       // Spawn enemy units
-      if (battleTime % 8 === 0) {
+      if (battleTime % 6 === 0) {
         spawnEnemyUnit();
       }
       
       // Tower attacks
       handleTowerAttacks();
       
-    }, 300);
+      // Catapult attacks (otomatik)
+      handleCatapultAttacks();
+      
+    }, 250);
 
     return () => clearInterval(interval);
-  }, [battleActive, battleTime, mana, units, towers, castles, gameResult]);
+  }, [battleActive, battleTime, mana, units, towers, castles, catapults, gameResult]);
+
+  const handleCatapultAttacks = () => {
+    catapults.forEach(catapult => {
+      // Catapults fire every 8 seconds automatically
+      if (battleTime - catapult.lastShot >= 8) {
+        // Find enemy buildings in range
+        const enemyBuildings = [
+          ...towers.filter(tower => tower.team !== catapult.team && tower.health > 0),
+          ...castles.filter(castle => castle.team !== catapult.team && castle.health > 0)
+        ];
+
+        // Find closest enemy building
+        let closestBuilding = null;
+        let minDistance = Infinity;
+        
+        for (const building of enemyBuildings) {
+          const distance = Math.sqrt(
+            Math.pow(building.position.x - catapult.position.x, 2) + 
+            Math.pow(building.position.y - catapult.position.y, 2)
+          );
+          if (distance <= catapult.range && distance < minDistance) {
+            minDistance = distance;
+            closestBuilding = building;
+          }
+        }
+
+        if (closestBuilding) {
+          // Attack the building
+          if ('side' in closestBuilding) {
+            // Attack tower
+            setTowers(prevTowers => prevTowers.map(tower => {
+              if (tower.id === closestBuilding.id) {
+                const newHealth = Math.max(0, tower.health - catapult.damage);
+                return { ...tower, health: newHealth };
+              }
+              return tower;
+            }));
+          } else {
+            // Attack castle
+            setCastles(prevCastles => prevCastles.map(castle => {
+              if (castle.id === closestBuilding.id) {
+                const newHealth = Math.max(0, castle.health - catapult.damage);
+                return { ...castle, health: newHealth };
+              }
+              return castle;
+            }));
+          }
+
+          // Update catapult last shot time
+          setCatapults(prevCatapults => prevCatapults.map(c => 
+            c.id === catapult.id ? { ...c, lastShot: battleTime } : c
+          ));
+        }
+      }
+    });
+  };
 
   const handleTowerAttacks = () => {
     towers.forEach(tower => {
-      if (tower.health <= 0 || battleTime - tower.lastAttack < 4) return;
+      if (tower.health <= 0 || battleTime - tower.lastAttack < 2) return;
 
-      // Find enemy units in range (wider range for tower attacks)
+      // Find enemy units in range
       const enemyUnitsInRange = units.filter(unit => {
         if (unit.team === tower.team || unit.health <= 0) return false;
         
@@ -167,16 +256,19 @@ export const BattleField = () => {
           Math.pow(unit.position.x - tower.position.x, 2) + 
           Math.pow(unit.position.y - tower.position.y, 2)
         );
-        return distance <= 120;
+        return distance <= 100;
       });
 
       if (enemyUnitsInRange.length > 0) {
-        // Kill multiple units (area damage)
-        const unitsToKill = Math.min(enemyUnitsInRange.length, Math.floor(Math.random() * 8) + 3);
-        const unitsToKillIds = enemyUnitsInRange.slice(0, unitsToKill).map(u => u.id);
+        // Attack the first enemy unit
+        const targetUnit = enemyUnitsInRange[0];
         
         setUnits(prevUnits => 
-          prevUnits.filter(unit => !unitsToKillIds.includes(unit.id))
+          prevUnits.map(unit => 
+            unit.id === targetUnit.id 
+              ? { ...unit, health: Math.max(0, unit.health - 150) }
+              : unit
+          ).filter(unit => unit.health > 0)
         );
 
         setTowers(prevTowers => 
@@ -250,6 +342,25 @@ export const BattleField = () => {
         health: 3000,
         maxHealth: 3000,
         position: { x: 400, y: 150 }
+      }
+    ]);
+
+    setCatapults([
+      {
+        id: 'player-catapult',
+        team: 'player',
+        position: { x: 300, y: 500 },
+        lastShot: 0,
+        damage: 300,
+        range: 250
+      },
+      {
+        id: 'enemy-catapult',
+        team: 'enemy',
+        position: { x: 500, y: 200 },
+        lastShot: 0,
+        damage: 300,
+        range: 250
       }
     ]);
   };
@@ -339,7 +450,7 @@ export const BattleField = () => {
         }
 
         // Attack building if in range
-        if (nearestBuilding && minDistance < 80) {
+        if (nearestBuilding && minDistance < 60) {
           if (battleTime - unit.lastAttack >= 1) {
             if ('side' in nearestBuilding) {
               // Attack tower
@@ -379,7 +490,7 @@ export const BattleField = () => {
           Math.sqrt(
             Math.pow(u.position.x - unit.position.x, 2) + 
             Math.pow(u.position.y - unit.position.y, 2)
-          ) < 60
+          ) < 50
         );
 
         if (enemies.length > 0) {
@@ -398,27 +509,25 @@ export const BattleField = () => {
           return { ...unit, isMoving: false, isAttackingBuilding: false, isInCombat: true };
         }
 
-        // 3. Move forward along path
-        if (unit.isMoving) {
-          const direction = unit.team === 'player' ? -1 : 1;
-          const pathConfig = PATH_CONFIGS[unit.path];
+        // 3. Move forward - improved movement logic
+        if (unit.isMoving && nearestBuilding) {
+          // Move towards the nearest enemy building
+          const deltaX = nearestBuilding.position.x - unit.position.x;
+          const deltaY = nearestBuilding.position.y - unit.position.y;
+          const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
           
-          // Follow path towards center then to target
-          let newX = unit.position.x;
-          let newY = unit.position.y + (unit.speed / 8) * direction;
-          
-          // Adjust X position based on path
-          if (Math.abs(unit.position.x - pathConfig.centerX) > 10) {
-            const xDirection = pathConfig.centerX > unit.position.x ? 1 : -1;
-            newX += (unit.speed / 12) * xDirection;
+          if (distance > 60) {
+            const moveSpeed = unit.speed / 6;
+            const newX = unit.position.x + (deltaX / distance) * moveSpeed;
+            const newY = unit.position.y + (deltaY / distance) * moveSpeed;
+            
+            return { 
+              ...unit, 
+              position: { x: newX, y: newY },
+              isAttackingBuilding: false,
+              isInCombat: false
+            };
           }
-          
-          return { 
-            ...unit, 
-            position: { x: newX, y: newY },
-            isAttackingBuilding: false,
-            isInCombat: false
-          };
         }
 
         return unit;
@@ -647,6 +756,33 @@ export const BattleField = () => {
                     </div>
                   </div>
                 ))}
+
+              {/* Catapults - Otomatik Mancınıklar */}
+              {catapults.map(catapult => (
+                <div
+                  key={catapult.id}
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                  style={{
+                    left: `${catapult.position.x}px`,
+                    top: `${catapult.position.y}px`
+                  }}
+                >
+                  <div className="flex flex-col items-center">
+                    <div className={`w-12 h-12 rounded-full shadow-lg border flex items-center justify-center ${
+                      catapult.team === 'player' 
+                        ? 'bg-gradient-to-b from-blue-500 to-blue-700 border-blue-600' 
+                        : 'bg-gradient-to-b from-red-500 to-red-700 border-red-600'
+                    }`}>
+                      <span className="text-white text-lg">🎯</span>
+                    </div>
+                    {battleTime - catapult.lastShot < 8 && (
+                      <div className="text-xs text-center font-bold text-orange-600 mt-1">
+                        {8 - (battleTime - catapult.lastShot)}s
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
 
               {/* Player Castle - Clean Design */}
               <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
