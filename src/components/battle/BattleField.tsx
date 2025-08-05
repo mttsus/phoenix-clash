@@ -38,6 +38,7 @@ interface Unit {
   isMoving: boolean;
   lastAttack: number;
   isAttackingTower: boolean;
+  isInCombat: boolean;
 }
 
 interface Catapult {
@@ -56,10 +57,10 @@ interface Catapult {
 }
 
 const UNIT_CONFIGS = {
-  swordsman: { icon: '⚔️', health: 300, damage: 50, speed: 40, cost: 2 },
-  archer: { icon: '🏹', health: 250, damage: 60, speed: 50, cost: 3 },
-  cavalry: { icon: '🐎', health: 400, damage: 70, speed: 60, cost: 4 },
-  mage_fire: { icon: '🔥', health: 200, damage: 100, speed: 35, cost: 5 }
+  swordsman: { icon: '⚔️', health: 200, damage: 50, speed: 80, cost: 2 },
+  archer: { icon: '🏹', health: 150, damage: 60, speed: 90, cost: 3 },
+  cavalry: { icon: '🐎', health: 250, damage: 70, speed: 120, cost: 4 },
+  mage_fire: { icon: '🔥', health: 120, damage: 100, speed: 70, cost: 5 }
 };
 
 const CATAPULT_CONFIG = {
@@ -67,7 +68,7 @@ const CATAPULT_CONFIG = {
   health: 1,
   maxHealth: 1,
   damage: 200,
-  speed: 20,
+  speed: 30,
   attackRange: 200,
   attackCooldown: 3,
   spawnInterval: 21
@@ -87,28 +88,28 @@ export const BattleField = () => {
 
   // Initialize towers and castles
   useEffect(() => {
-    // Initialize towers (3 per lane, 9 total for each team) - Dikey düzenleme
+    // Initialize towers (3 per lane, 9 total for each team)
     const initialTowers: Tower[] = [];
     for (let lane = 0; lane < 3; lane++) {
       for (let position = 0; position < 3; position++) {
-        // Player towers (alt)
+        // Player towers (bottom)
         initialTowers.push({
           id: `player-tower-${lane}-${position}`,
           team: 'player',
           lane,
-          health: 500, // Daha kolay yıkılabilir
-          maxHealth: 500,
+          health: 300,
+          maxHealth: 300,
           position: { x: 200 + lane * 200, y: 500 - position * 100 },
           lastAttack: 0
         });
         
-        // Enemy towers (üst)
+        // Enemy towers (top)
         initialTowers.push({
           id: `enemy-tower-${lane}-${position}`,
           team: 'enemy',
           lane,
-          health: 500,
-          maxHealth: 500,
+          health: 300,
+          maxHealth: 300,
           position: { x: 200 + lane * 200, y: 200 + position * 100 },
           lastAttack: 0
         });
@@ -120,15 +121,15 @@ export const BattleField = () => {
       {
         id: 'player-castle',
         team: 'player',
-        health: 2500,
-        maxHealth: 2500,
+        health: 1500,
+        maxHealth: 1500,
         position: { x: 400, y: 650 }
       },
       {
         id: 'enemy-castle',
         team: 'enemy', 
-        health: 2500,
-        maxHealth: 2500,
+        health: 1500,
+        maxHealth: 1500,
         position: { x: 400, y: 50 }
       }
     ]);
@@ -154,14 +155,14 @@ export const BattleField = () => {
       moveAndAttackCatapults();
       
       // Spawn enemy units occasionally
-      if (battleTime % 10 === 0) {
+      if (battleTime % 8 === 0) {
         spawnEnemyUnit();
       }
       
-      // Tower attacks - daha az saldırgan
+      // Tower attacks
       handleTowerAttacks();
       
-    }, 1000);
+    }, 500); // Faster update rate for smoother movement
 
     return () => clearInterval(interval);
   }, [battleActive, battleTime, mana, units, catapults, towers, castles, gameResult, lastCatapultSpawn]);
@@ -244,7 +245,8 @@ export const BattleField = () => {
               // It's a tower
               setTowers(prevTowers => prevTowers.map(tower => {
                 if (tower.id === nearestTarget.id) {
-                  return { ...tower, health: Math.max(0, tower.health - CATAPULT_CONFIG.damage) };
+                  const newHealth = Math.max(0, tower.health - CATAPULT_CONFIG.damage);
+                  return { ...tower, health: newHealth };
                 }
                 return tower;
               }));
@@ -252,7 +254,8 @@ export const BattleField = () => {
               // It's a castle
               setCastles(prevCastles => prevCastles.map(castle => {
                 if (castle.id === nearestTarget.id) {
-                  return { ...castle, health: Math.max(0, castle.health - CATAPULT_CONFIG.damage) };
+                  const newHealth = Math.max(0, castle.health - CATAPULT_CONFIG.damage);
+                  return { ...castle, health: newHealth };
                 }
                 return castle;
               }));
@@ -266,7 +269,7 @@ export const BattleField = () => {
         // No targets in range, move forward
         if (catapult.isMoving) {
           const direction = catapult.team === 'player' ? -1 : 1;
-          const newY = catapult.position.y + (catapult.speed / 10) * direction;
+          const newY = catapult.position.y + (catapult.speed / 20) * direction;
           
           return { ...catapult, position: { ...catapult.position, y: newY } };
         }
@@ -278,19 +281,19 @@ export const BattleField = () => {
 
   const handleTowerAttacks = () => {
     towers.forEach(tower => {
-      if (tower.health <= 0 || battleTime - tower.lastAttack < 4) return; // Daha az saldırır
+      if (tower.health <= 0 || battleTime - tower.lastAttack < 5) return;
 
-      // Find enemy units in range - daha az öldürücü
+      // Find enemy units in range
       const enemyUnitsInRange = units.filter(unit => 
         unit.team !== tower.team &&
         unit.lane === tower.lane &&
         unit.health > 0 &&
-        Math.abs(unit.position.y - tower.position.y) <= 150
+        Math.abs(unit.position.y - tower.position.y) <= 120
       );
 
       if (enemyUnitsInRange.length > 0) {
-        // Daha az öldürür (20-50 arası)
-        const unitsToKill = Math.min(enemyUnitsInRange.length, Math.floor(Math.random() * 31) + 20);
+        // Kill fewer units (10-30)
+        const unitsToKill = Math.min(enemyUnitsInRange.length, Math.floor(Math.random() * 21) + 10);
         const unitsToKillIds = enemyUnitsInRange.slice(0, unitsToKill).map(u => u.id);
         
         setUnits(prevUnits => 
@@ -309,7 +312,7 @@ export const BattleField = () => {
         catapult.team !== tower.team &&
         catapult.lane === tower.lane &&
         catapult.health > 0 &&
-        Math.abs(catapult.position.y - tower.position.y) <= 150
+        Math.abs(catapult.position.y - tower.position.y) <= 120
       );
 
       if (enemyCatapultsInRange.length > 0) {
@@ -344,8 +347,8 @@ export const BattleField = () => {
           id: `player-tower-${lane}-${position}`,
           team: 'player',
           lane,
-          health: 500,
-          maxHealth: 500,
+          health: 300,
+          maxHealth: 300,
           position: { x: 200 + lane * 200, y: 500 - position * 100 },
           lastAttack: 0
         });
@@ -354,8 +357,8 @@ export const BattleField = () => {
           id: `enemy-tower-${lane}-${position}`,
           team: 'enemy',
           lane,
-          health: 500,
-          maxHealth: 500,
+          health: 300,
+          maxHealth: 300,
           position: { x: 200 + lane * 200, y: 200 + position * 100 },
           lastAttack: 0
         });
@@ -367,15 +370,15 @@ export const BattleField = () => {
       {
         id: 'player-castle',
         team: 'player',
-        health: 2500,
-        maxHealth: 2500,
+        health: 1500,
+        maxHealth: 1500,
         position: { x: 400, y: 650 }
       },
       {
         id: 'enemy-castle',
         team: 'enemy',
-        health: 2500,
-        maxHealth: 2500,
+        health: 1500,
+        maxHealth: 1500,
         position: { x: 400, y: 50 }
       }
     ]);
@@ -403,7 +406,8 @@ export const BattleField = () => {
       speed: config.speed,
       isMoving: true,
       lastAttack: 0,
-      isAttackingTower: false
+      isAttackingTower: false,
+      isInCombat: false
     };
 
     setUnits(prev => [...prev, newUnit]);
@@ -428,7 +432,8 @@ export const BattleField = () => {
       speed: config.speed,
       isMoving: true,
       lastAttack: 0,
-      isAttackingTower: false
+      isAttackingTower: false,
+      isInCombat: false
     };
 
     setUnits(prev => [...prev, enemyUnit]);
@@ -439,14 +444,13 @@ export const BattleField = () => {
       const updatedUnits = prevUnits.map(unit => {
         if (unit.health <= 0) return unit;
 
-        // 1. Önce düşman kulelerini kontrol et - daha agresif saldır
+        // 1. Check for enemy towers first
         const enemyTowersInLane = towers.filter(tower => 
           tower.team !== unit.team && 
           tower.health > 0 && 
           tower.lane === unit.lane
         );
 
-        // En yakın düşman kuleyi bul
         let nearestEnemyTower = null;
         let minTowerDistance = Infinity;
         
@@ -458,10 +462,9 @@ export const BattleField = () => {
           }
         }
 
-        // Eğer kule yakınsa (100 pixel içinde) ona saldır - daha uzak mesafeden
-        if (nearestEnemyTower && minTowerDistance < 100) {
-          if (battleTime - unit.lastAttack >= 1) {
-            // Kuleye saldır - daha fazla hasar
+        // Attack tower if close enough
+        if (nearestEnemyTower && minTowerDistance < 60) {
+          if (battleTime - unit.lastAttack >= 2) {
             setTowers(prevTowers => prevTowers.map(tower => {
               if (tower.id === nearestEnemyTower.id) {
                 const newHealth = Math.max(0, tower.health - unit.damage);
@@ -474,47 +477,41 @@ export const BattleField = () => {
               ...unit, 
               lastAttack: battleTime, 
               isMoving: false, 
-              isAttackingTower: true 
+              isAttackingTower: true,
+              isInCombat: false
             };
           }
-          return { ...unit, isMoving: false, isAttackingTower: true };
+          return { ...unit, isMoving: false, isAttackingTower: true, isInCombat: false };
         }
 
-        // 2. Kule yoksa veya uzaksa, düşman askerleri kontrol et
+        // 2. Check for enemy units
         const enemies = prevUnits.filter(u => 
           u.team !== unit.team && 
           u.health > 0 && 
           u.lane === unit.lane &&
-          Math.abs(u.position.y - unit.position.y) < 80
+          Math.abs(u.position.y - unit.position.y) < 50
         );
 
         if (enemies.length > 0) {
-          const nearestEnemy = enemies.reduce((closest, enemy) => {
-            const distToEnemy = Math.abs(enemy.position.y - unit.position.y);
-            const distToClosest = Math.abs(closest.position.y - unit.position.y);
-            return distToEnemy < distToClosest ? enemy : closest;
-          });
-
-          const distance = Math.abs(nearestEnemy.position.y - unit.position.y);
+          const nearestEnemy = enemies[0];
           
-          if (distance < 60) {
-            if (battleTime - unit.lastAttack >= 1) {
-              return { 
-                ...unit, 
-                target: nearestEnemy, 
-                isMoving: false, 
-                lastAttack: battleTime,
-                isAttackingTower: false 
-              };
-            }
-            return { ...unit, isMoving: false, isAttackingTower: false };
+          if (battleTime - unit.lastAttack >= 2) {
+            return { 
+              ...unit, 
+              target: nearestEnemy, 
+              isMoving: false, 
+              lastAttack: battleTime,
+              isAttackingTower: false,
+              isInCombat: true
+            };
           }
+          return { ...unit, isMoving: false, isAttackingTower: false, isInCombat: true };
         }
 
-        // 3. Düşman kale kontrolü
+        // 3. Check enemy castle
         const enemyCastle = castles.find(c => c.team !== unit.team);
-        if (enemyCastle && Math.abs(unit.position.y - enemyCastle.position.y) < 80) {
-          if (battleTime - unit.lastAttack >= 1) {
+        if (enemyCastle && Math.abs(unit.position.y - enemyCastle.position.y) < 60) {
+          if (battleTime - unit.lastAttack >= 2) {
             setCastles(prev => prev.map(castle => {
               if (castle.team !== unit.team) {
                 const newHealth = Math.max(0, castle.health - unit.damage);
@@ -522,19 +519,20 @@ export const BattleField = () => {
               }
               return castle;
             }));
-            return { ...unit, lastAttack: battleTime, isAttackingTower: false };
+            return { ...unit, lastAttack: battleTime, isAttackingTower: false, isInCombat: false };
           }
         }
 
-        // 4. Hiç düşman yoksa ilerle
+        // 4. Move forward if no enemies
         if (unit.isMoving) {
           const direction = unit.team === 'player' ? -1 : 1;
-          const newY = unit.position.y + (unit.speed / 10) * direction;
+          const newY = unit.position.y + (unit.speed / 20) * direction;
           
           return { 
             ...unit, 
             position: { ...unit.position, y: newY },
-            isAttackingTower: false
+            isAttackingTower: false,
+            isInCombat: false
           };
         }
 
@@ -582,6 +580,14 @@ export const BattleField = () => {
       case 1: return 'border-green-400 bg-green-50';
       case 2: return 'border-red-400 bg-red-50';
       default: return 'border-gray-400 bg-gray-50';
+    }
+  };
+
+  const getUnitBoundaryStyle = (unit: Unit) => {
+    if (unit.team === 'player') {
+      return 'shadow-lg shadow-blue-300 border-2 border-blue-400 bg-blue-100/30 rounded-full p-1';
+    } else {
+      return 'shadow-lg shadow-red-300 border-2 border-red-400 bg-red-100/30 rounded-full p-1';
     }
   };
 
@@ -685,7 +691,7 @@ export const BattleField = () => {
 
           {/* Battle Arena - Vertical View */}
           <div className="flex-1 relative bg-gradient-to-b from-red-200 via-yellow-100 to-blue-200">
-            {/* 3 Lanes - Dikey */}
+            {/* 3 Lanes - Vertical */}
             <div className="absolute inset-4 grid grid-cols-3 gap-4">
               {[0, 1, 2].map(lane => (
                 <div key={lane} className={`relative border-2 rounded ${getLaneColor(lane)} overflow-hidden`}>
@@ -699,7 +705,7 @@ export const BattleField = () => {
                       <span className="text-white text-xl">🏰</span>
                     </div>
                     <div className="text-xs text-center mt-1">
-                      {Math.round(((enemyCastle?.health || 0) / 2500) * 100)}%
+                      {Math.round(((enemyCastle?.health || 0) / (enemyCastle?.maxHealth || 1)) * 100)}%
                     </div>
                   </div>
 
@@ -730,7 +736,7 @@ export const BattleField = () => {
                       <span className="text-white text-xl">🏰</span>
                     </div>
                     <div className="text-xs text-center mt-1">
-                      {Math.round(((playerCastle?.health || 0) / 2500) * 100)}%
+                      {Math.round(((playerCastle?.health || 0) / (playerCastle?.maxHealth || 1)) * 100)}%
                     </div>
                   </div>
 
@@ -755,32 +761,35 @@ export const BattleField = () => {
                       </div>
                     ))}
 
-                  {/* Units in this lane */}
+                  {/* Units in this lane with team boundaries */}
                   {units
                     .filter(unit => unit.lane === lane)
                     .map(unit => (
                       <div
                         key={unit.id}
-                        className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-1000 ${
-                          unit.team === 'player' ? 'text-blue-600' : 'text-red-600'
-                        }`}
+                        className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-500`}
                         style={{
                           left: '50%',
                           top: `${(unit.position.y / 700) * 100}%`
                         }}
                       >
-                        <div className="text-lg">
-                          {UNIT_CONFIGS[unit.type].icon}
+                        <div className={getUnitBoundaryStyle(unit)}>
+                          <div className="text-lg">
+                            {UNIT_CONFIGS[unit.type].icon}
+                          </div>
+                          <div className="w-8 h-1 bg-gray-300 rounded mt-1">
+                            <div 
+                              className="h-full bg-green-500 rounded"
+                              style={{ width: `${(unit.health / unit.maxHealth) * 100}%` }}
+                            />
+                          </div>
+                          {unit.isAttackingTower && (
+                            <div className="text-xs text-center text-red-600 font-bold">⚔️</div>
+                          )}
+                          {unit.isInCombat && (
+                            <div className="text-xs text-center text-orange-600 font-bold">💥</div>
+                          )}
                         </div>
-                        <div className="w-8 h-1 bg-gray-300 rounded mt-1">
-                          <div 
-                            className="h-full bg-green-500 rounded"
-                            style={{ width: `${(unit.health / unit.maxHealth) * 100}%` }}
-                          />
-                        </div>
-                        {unit.isAttackingTower && (
-                          <div className="text-xs text-center text-red-600 font-bold">⚔️</div>
-                        )}
                       </div>
                     ))}
 
@@ -815,7 +824,7 @@ export const BattleField = () => {
               <div>Aktif Birimler: {units.length}</div>
               <div>Aktif Mancınıklar: {catapults.length}</div>
               <div>Aktif Kuleler: {towers.filter(t => t.health > 0).length}</div>
-              <div>Kule Saldırısı Yapan: {units.filter(u => u.isAttackingTower).length}</div>
+              <div>Savaşta Olan: {units.filter(u => u.isInCombat || u.isAttackingTower).length}</div>
             </div>
           </div>
         </div>
