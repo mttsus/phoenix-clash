@@ -2,8 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Tower {
   id: number;
@@ -77,6 +78,17 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
   const [cameraPosition, setCameraPosition] = useState({ x: 300, y: 400 });
   const [castleHealth, setCastleHealth] = useState({ player: 5000, enemy: 5000 });
   const [lastCatapultSpawn, setLastCatapultSpawn] = useState(0);
+  const [battleResult, setBattleResult] = useState<{ won: boolean; rewards?: any } | null>(null);
+  const [availableArmy, setAvailableArmy] = useState<{ [key: string]: number }>({});
+
+  // Initialize available army from current game state
+  useEffect(() => {
+    const armyMap: { [key: string]: number } = {};
+    state.army.forEach(unit => {
+      armyMap[unit.type] = (armyMap[unit.type] || 0) + unit.count;
+    });
+    setAvailableArmy(armyMap);
+  }, [state.army]);
 
   // Initialize towers (Both player and enemy towers - 3 lanes x 3 positions each)
   useEffect(() => {
@@ -205,7 +217,7 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
     };
   }, [state.battleState.playerMana, state.battleState.maxMana, dispatch]);
 
-  // Main game loop
+  // Main game loop with win condition rewards
   useEffect(() => {
     const gameLoop = setInterval(() => {
       // Unit movement and combat
@@ -380,28 +392,49 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
         })
       );
 
-      // Check win conditions
+      // Check win conditions with rewards
       if (castleHealth.enemy <= 0) {
+        const rewards = {
+          wood: 3000,
+          gold: 3000,
+          iron: 3000,
+          wheat: 3000,
+          stone: 3000
+        };
+        
+        setBattleResult({ won: true, rewards });
+        
         setTimeout(() => {
           dispatch({ type: 'BATTLE_RESULT', payload: { won: true } });
-          dispatch({ type: 'END_BATTLE' });
-        }, 1000);
+          dispatch({ 
+            type: 'UPDATE_RESOURCES', 
+            payload: {
+              wood: state.resources.wood + rewards.wood,
+              gold: state.resources.gold + rewards.gold,
+              iron: state.resources.iron + rewards.iron,
+              wheat: state.resources.wheat + rewards.wheat,
+              stone: state.resources.stone + rewards.stone
+            }
+          });
+        }, 2000);
       } else if (castleHealth.player <= 0) {
+        setBattleResult({ won: false });
+        
         setTimeout(() => {
           dispatch({ type: 'BATTLE_RESULT', payload: { won: false } });
-          dispatch({ type: 'END_BATTLE' });
-        }, 1000);
+        }, 2000);
       }
     }, 100);
 
     return () => clearInterval(gameLoop);
-  }, [units, towers, catapults, gameTime, castleHealth, dispatch]);
+  }, [units, towers, catapults, gameTime, castleHealth, dispatch, state.resources]);
 
-  // Deploy unit battalion
+  // Deploy unit battalion - consume from available army
   const deployUnit = useCallback((lane: number) => {
     const unitData = UNIT_STATS[selectedUnit];
+    const availableCount = availableArmy[selectedUnit] || 0;
     
-    if (state.battleState.playerMana >= unitData.cost) {
+    if (state.battleState.playerMana >= unitData.cost && availableCount >= 100) {
       const newUnit: Unit = {
         id: `${selectedUnit}_${Date.now()}`,
         type: selectedUnit,
@@ -418,12 +451,16 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
       };
 
       setUnits(prev => [...prev, newUnit]);
+      setAvailableArmy(prev => ({
+        ...prev,
+        [selectedUnit]: prev[selectedUnit] - 100
+      }));
       dispatch({ 
         type: 'UPDATE_MANA', 
         payload: state.battleState.playerMana - unitData.cost 
       });
     }
-  }, [selectedUnit, state.battleState.playerMana, dispatch]);
+  }, [selectedUnit, state.battleState.playerMana, availableArmy, dispatch]);
 
   // Follow unit camera
   useEffect(() => {
@@ -441,8 +478,65 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const closeBattleResult = () => {
+    setBattleResult(null);
+    dispatch({ type: 'END_BATTLE' });
+  };
+
   return (
     <div className="h-full flex flex-col bg-gray-900">
+      {/* Battle Result Modal */}
+      <Dialog open={!!battleResult} onOpenChange={() => {}}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">
+              {battleResult?.won ? '🎉 Zafer!' : '💀 Yenilgi'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-center">
+              <p className="text-lg mb-4">
+                {battleResult?.won 
+                  ? 'Düşman kalesini yıktınız!' 
+                  : 'Kaleniz yıkıldı...'}
+              </p>
+              
+              {battleResult?.won && battleResult.rewards && (
+                <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
+                  <h3 className="font-bold text-green-800 mb-3">🎁 Kazandığınız Ödüller:</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>🪵 Odun:</span>
+                      <span className="font-bold">+{battleResult.rewards.wood}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>🪙 Altın:</span>
+                      <span className="font-bold">+{battleResult.rewards.gold}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>⚒️ Demir:</span>
+                      <span className="font-bold">+{battleResult.rewards.iron}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>🌾 Buğday:</span>
+                      <span className="font-bold">+{battleResult.rewards.wheat}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>🪨 Taş:</span>
+                      <span className="font-bold">+{battleResult.rewards.stone}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <Button onClick={closeBattleResult} className="w-full">
+              Haritaya Dön
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Top HUD */}
       <div className="h-16 bg-gray-800 text-white p-2 flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -478,46 +572,70 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
         <div className="w-64 bg-gray-800 text-white p-4">
           <h3 className="text-lg font-bold mb-4">Birim Kontrolü</h3>
           
+          {/* Available Army Display */}
+          <div className="mb-4 p-3 bg-gray-700 rounded">
+            <h4 className="text-sm font-medium mb-2">Mevcut Ordu:</h4>
+            <div className="space-y-1 text-xs">
+              {Object.entries(UNIT_STATS).map(([key, unit]) => (
+                <div key={key} className="flex justify-between">
+                  <span>{unit.icon} {unit.name}:</span>
+                  <span className="font-bold">{availableArmy[key] || 0}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
           {/* Unit Selection */}
           <div className="space-y-2 mb-4">
-            {Object.entries(UNIT_STATS).map(([key, unit]) => (
-              <Card 
-                key={key}
-                className={`cursor-pointer transition-all ${
-                  selectedUnit === key ? 'ring-2 ring-blue-400' : ''
-                } ${
-                  state.battleState.playerMana >= unit.cost 
-                    ? 'opacity-100' 
-                    : 'opacity-50'
-                }`}
-                onClick={() => setSelectedUnit(key as keyof typeof UNIT_STATS)}
-              >
-                <CardContent className="p-2 flex items-center gap-2">
-                  <span className="text-lg">{unit.icon}</span>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{unit.name}</div>
-                    <div className="text-xs text-gray-400">{unit.cost}💜</div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {Object.entries(UNIT_STATS).map(([key, unit]) => {
+              const availableCount = availableArmy[key] || 0;
+              return (
+                <Card 
+                  key={key}
+                  className={`cursor-pointer transition-all ${
+                    selectedUnit === key ? 'ring-2 ring-blue-400' : ''
+                  } ${
+                    state.battleState.playerMana >= unit.cost && availableCount >= 100
+                      ? 'opacity-100' 
+                      : 'opacity-50'
+                  }`}
+                  onClick={() => setSelectedUnit(key as keyof typeof UNIT_STATS)}
+                >
+                  <CardContent className="p-2 flex items-center gap-2">
+                    <span className="text-lg">{unit.icon}</span>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{unit.name}</div>
+                      <div className="text-xs text-gray-400">
+                        {unit.cost}💜 • {availableCount} mevcut
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
           {/* Lane Deployment */}
           <div className="space-y-2 mb-4">
             <h4 className="text-sm font-medium">Hat Seçimi:</h4>
-            {['Sol Hat', 'Orta Hat', 'Sağ Hat'].map((lane, index) => (
-              <Button
-                key={index}
-                onClick={() => deployUnit(index)}
-                disabled={state.battleState.playerMana < UNIT_STATS[selectedUnit].cost}
-                variant="outline"
-                size="sm"
-                className="w-full text-black"
-              >
-                {lane} - 100 {UNIT_STATS[selectedUnit].name}
-              </Button>
-            ))}
+            {['Sol Hat', 'Orta Hat', 'Sağ Hat'].map((lane, index) => {
+              const availableCount = availableArmy[selectedUnit] || 0;
+              return (
+                <Button
+                  key={index}
+                  onClick={() => deployUnit(index)}
+                  disabled={
+                    state.battleState.playerMana < UNIT_STATS[selectedUnit].cost ||
+                    availableCount < 100
+                  }
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-black"
+                >
+                  {lane} - 100 {UNIT_STATS[selectedUnit].name}
+                </Button>
+              );
+            })}
           </div>
 
           {/* Active Units */}
