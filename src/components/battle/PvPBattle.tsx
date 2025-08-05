@@ -84,7 +84,7 @@ export const PvPBattle = () => {
     try {
       const damageDealt = maxEnemyHealth - enemyHealth;
 
-      // Save battle result to database (optional)
+      // Save battle result to database
       const { error: battleError } = await supabase
         .from('pvp_battles')
         .insert({
@@ -98,6 +98,7 @@ export const PvPBattle = () => {
 
       if (battleError) {
         console.error('PvP battle log save error:', battleError);
+        // Don't throw error, just log it - battle should still complete
       }
 
       if (victory) {
@@ -115,7 +116,7 @@ export const PvPBattle = () => {
         
         toast.success(`🎉 ${enemy.username} kalesini ele geçirdiniz! +2000 kaynak kazandınız!`);
       } else {
-        toast.info(`${enemy.username} kalesine ${damageDealt} hasar verdiniz ama yenemedid..`);
+        toast.info(`${enemy.username} kalesine ${damageDealt} hasar verdiniz ama yenemediniz..`);
       }
 
       // Update battle result in context

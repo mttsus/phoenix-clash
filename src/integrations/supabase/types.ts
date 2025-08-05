@@ -350,6 +350,39 @@ export type Database = {
         }
         Relationships: []
       }
+      pvp_battles: {
+        Row: {
+          army_count: number
+          attacker_id: string
+          battle_log: string[] | null
+          created_at: string
+          damage_dealt: number
+          defender_id: string
+          id: string
+          victory: boolean
+        }
+        Insert: {
+          army_count: number
+          attacker_id: string
+          battle_log?: string[] | null
+          created_at?: string
+          damage_dealt: number
+          defender_id: string
+          id?: string
+          victory?: boolean
+        }
+        Update: {
+          army_count?: number
+          attacker_id?: string
+          battle_log?: string[] | null
+          created_at?: string
+          damage_dealt?: number
+          defender_id?: string
+          id?: string
+          victory?: boolean
+        }
+        Relationships: []
+      }
       resource_battles: {
         Row: {
           army_count: number
