@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useCallback } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
@@ -39,24 +38,28 @@ interface Unit {
 interface Catapult {
   id: number;
   team: 'player' | 'enemy';
+  lane: number; // Added lane for catapults
   x: number;
   y: number;
   health: number;
   maxHealth: number;
+  damage: number;
   lastShot: number;
   isDestroyed: boolean;
   targetX: number;
   targetY: number;
   isMoving: boolean;
+  speed: number; // Added speed for movement
+  lastSpawn: number; // Track when catapult was spawned
 }
 
 const UNIT_STATS = {
-  swordsman: { name: 'Kılıçlı', health: 100, damage: 1, speed: 1, cost: 1, icon: '⚔️' },
-  archer: { name: 'Okçu', health: 80, damage: 1, speed: 1.2, cost: 1, icon: '🏹' },
-  cavalry: { name: 'Atlı', health: 120, damage: 1, speed: 2.5, cost: 2, icon: '🐎' },
-  mage_fire: { name: 'Ateş Büyücü', health: 60, damage: 2, speed: 0.8, cost: 2, icon: '🔥' },
-  mage_ice: { name: 'Buz Büyücü', health: 70, damage: 1, speed: 0.8, cost: 2, icon: '❄️' },
-  mage_lightning: { name: 'Şimşek Büyücü', health: 50, damage: 3, speed: 0.8, cost: 3, icon: '⚡' }
+  swordsman: { name: 'Kılıçlı', health: 100, damage: 100, speed: 1, cost: 1, icon: '⚔️' }, // Increased damage to 100
+  archer: { name: 'Okçu', health: 80, damage: 100, speed: 1.2, cost: 1, icon: '🏹' }, // Increased damage to 100
+  cavalry: { name: 'Atlı', health: 120, damage: 100, speed: 2.5, cost: 2, icon: '🐎' }, // Increased damage to 100
+  mage_fire: { name: 'Ateş Büyücü', health: 60, damage: 100, speed: 0.8, cost: 2, icon: '🔥' }, // Increased damage to 100
+  mage_ice: { name: 'Buz Büyücü', health: 70, damage: 100, speed: 0.8, cost: 2, icon: '❄️' }, // Increased damage to 100
+  mage_lightning: { name: 'Şimşek Büyücü', health: 50, damage: 100, speed: 0.8, cost: 3, icon: '⚡' } // Increased damage to 100
 };
 
 interface DefensiveBattleProps {
@@ -73,6 +76,7 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
   const [selectedUnitToFollow, setSelectedUnitToFollow] = useState<string | null>(null);
   const [cameraPosition, setCameraPosition] = useState({ x: 300, y: 400 });
   const [castleHealth, setCastleHealth] = useState({ player: 5000, enemy: 5000 });
+  const [lastCatapultSpawn, setLastCatapultSpawn] = useState(0);
 
   // Initialize towers (Both player and enemy towers - 3 lanes x 3 positions each)
   useEffect(() => {
@@ -121,37 +125,67 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
     }
     
     setTowers(initialTowers);
-
-    // Initialize catapults
-    setCatapults([
-      {
-        id: 0,
-        team: 'player',
-        x: 300,
-        y: 580,
-        health: 100,
-        maxHealth: 100,
-        lastShot: 0,
-        isDestroyed: false,
-        targetX: 300,
-        targetY: 300,
-        isMoving: false
-      },
-      {
-        id: 1,
-        team: 'enemy',
-        x: 300,
-        y: 20,
-        health: 100,
-        maxHealth: 100,
-        lastShot: 0,
-        isDestroyed: false,
-        targetX: 300,
-        targetY: 300,
-        isMoving: false
-      }
-    ]);
   }, []);
+
+  // Spawn catapults every 21 seconds from 3 lanes
+  useEffect(() => {
+    const catapultSpawnInterval = setInterval(() => {
+      if (gameTime - lastCatapultSpawn >= 21) {
+        // Spawn player catapults from 3 lanes
+        const newPlayerCatapults: Catapult[] = [];
+        for (let lane = 0; lane < 3; lane++) {
+          const x = 150 + (lane * 200);
+          const y = 580;
+          newPlayerCatapults.push({
+            id: Date.now() + lane,
+            team: 'player',
+            lane,
+            x,
+            y,
+            health: 100,
+            maxHealth: 100,
+            damage: 100,
+            lastShot: 0,
+            isDestroyed: false,
+            targetX: x,
+            targetY: 300,
+            isMoving: true,
+            speed: 0.5,
+            lastSpawn: gameTime
+          });
+        }
+
+        // Spawn enemy catapults from 3 lanes
+        const newEnemyCatapults: Catapult[] = [];
+        for (let lane = 0; lane < 3; lane++) {
+          const x = 150 + (lane * 200);
+          const y = 20;
+          newEnemyCatapults.push({
+            id: Date.now() + lane + 10,
+            team: 'enemy',
+            lane,
+            x,
+            y,
+            health: 100,
+            maxHealth: 100,
+            damage: 100,
+            lastShot: 0,
+            isDestroyed: false,
+            targetX: x,
+            targetY: 300,
+            isMoving: true,
+            speed: 0.5,
+            lastSpawn: gameTime
+          });
+        }
+
+        setCatapults(prev => [...prev, ...newPlayerCatapults, ...newEnemyCatapults]);
+        setLastCatapultSpawn(gameTime);
+      }
+    }, 1000);
+
+    return () => clearInterval(catapultSpawnInterval);
+  }, [gameTime, lastCatapultSpawn]);
 
   // Mana regeneration system
   useEffect(() => {
@@ -268,45 +302,80 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
         }
       });
 
-      // Catapult movement and auto-fire
+      // Catapult movement and targeting
       setCatapults(prevCatapults => 
         prevCatapults.map(catapult => {
           if (catapult.isDestroyed) return catapult;
 
-          // Move catapults automatically towards center
-          if (!catapult.isMoving) {
-            const centerY = 300;
-            const distance = Math.abs(centerY - catapult.y);
+          // Move catapults towards enemy towers in their lane
+          const enemyTeam = catapult.team === 'player' ? 'enemy' : 'player';
+          const enemyTowersInLane = towers.filter(t => 
+            !t.isDestroyed && 
+            t.team === enemyTeam && 
+            t.lane === catapult.lane
+          ).sort((a, b) => Math.abs(a.y - catapult.y) - Math.abs(b.y - catapult.y));
+
+          let targetY = catapult.team === 'player' ? 50 : 550; // Default target (enemy castle area)
+          
+          if (enemyTowersInLane.length > 0) {
+            targetY = enemyTowersInLane[0].y;
+          }
+
+          // Move towards target
+          if (catapult.isMoving) {
+            const distance = Math.abs(targetY - catapult.y);
             if (distance > 5) {
-              catapult.isMoving = true;
-              if (catapult.team === 'player') {
-                catapult.targetY = centerY + 50;
-              } else {
-                catapult.targetY = centerY - 50;
-              }
+              const newY = catapult.team === 'player' 
+                ? catapult.y - catapult.speed 
+                : catapult.y + catapult.speed;
+              catapult.y = newY;
+            } else {
+              catapult.isMoving = false;
             }
           }
 
-          // Auto-fire every 21 seconds
-          if (gameTime - catapult.lastShot >= 21) {
-            const enemyTeam = catapult.team === 'player' ? 'enemy' : 'player';
-            const enemyTowers = towers.filter(t => !t.isDestroyed && t.team === enemyTeam);
-            if (enemyTowers.length > 0) {
-              const targetTower = enemyTowers[Math.floor(Math.random() * enemyTowers.length)];
-              setTowers(prevTowers =>
-                prevTowers.map(t =>
-                  t.id === targetTower.id
-                    ? { 
-                        ...t, 
-                        health: Math.max(0, t.health - 100),
-                        isDestroyed: t.health - 100 <= 0 
-                      }
-                    : t
-                )
-              );
+          // Auto-fire every 3 seconds when in range
+          if (gameTime - catapult.lastShot >= 3) {
+            if (enemyTowersInLane.length > 0) {
+              const targetTower = enemyTowersInLane[0];
+              const distance = Math.abs(targetTower.y - catapult.y);
+              
+              if (distance <= 100) { // In range
+                setTowers(prevTowers =>
+                  prevTowers.map(t =>
+                    t.id === targetTower.id
+                      ? { 
+                          ...t, 
+                          health: Math.max(0, t.health - catapult.damage),
+                          isDestroyed: t.health - catapult.damage <= 0 
+                        }
+                      : t
+                  )
+                );
+                return { ...catapult, lastShot: gameTime };
+              }
+            } else {
+              // Target enemy castle if no towers
+              const enemyCastleY = catapult.team === 'player' ? 20 : 580;
+              const distance = Math.abs(enemyCastleY - catapult.y);
+              
+              if (distance <= 100) {
+                if (catapult.team === 'player') {
+                  setCastleHealth(prev => ({
+                    ...prev,
+                    enemy: Math.max(0, prev.enemy - catapult.damage)
+                  }));
+                } else {
+                  setCastleHealth(prev => ({
+                    ...prev,
+                    player: Math.max(0, prev.player - catapult.damage)
+                  }));
+                }
+                return { ...catapult, lastShot: gameTime };
+              }
             }
-            return { ...catapult, lastShot: gameTime };
           }
+          
           return catapult;
         })
       );
@@ -326,7 +395,7 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
     }, 100);
 
     return () => clearInterval(gameLoop);
-  }, [units, towers, gameTime, castleHealth, dispatch]);
+  }, [units, towers, catapults, gameTime, castleHealth, dispatch]);
 
   // Deploy unit battalion
   const deployUnit = useCallback((lane: number) => {
@@ -573,7 +642,7 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
             ))}
 
             {/* Catapults */}
-            {catapults.map(catapult => (
+            {catapults.filter(c => !c.isDestroyed).map(catapult => (
               <div
                 key={catapult.id}
                 className="absolute"
@@ -586,11 +655,9 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
                 <div className={`w-8 h-8 ${catapult.team === 'player' ? 'bg-blue-700' : 'bg-red-700'} rounded-full flex items-center justify-center text-lg`}>
                   🎯
                 </div>
-                {!catapult.isDestroyed && (
-                  <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-xs text-white bg-black bg-opacity-50 px-1 rounded">
-                    {Math.max(0, 21 - (gameTime - catapult.lastShot))}s
-                  </div>
-                )}
+                <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-xs text-white bg-black bg-opacity-50 px-1 rounded">
+                  {Math.max(0, 3 - (gameTime - catapult.lastShot))}s
+                </div>
               </div>
             ))}
           </div>
