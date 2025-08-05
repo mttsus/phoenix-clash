@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Shield, ShieldOff } from 'lucide-react';
 import { ResourceBattle } from './ResourceBattle';
 import { CastleInterior } from './CastleInterior';
+import { useTutorial } from '@/hooks/useTutorial';
 
 interface HexPosition {
   q: number;
@@ -188,6 +189,7 @@ const HexTile = ({ q, r, s, type, onClick, isSelected, hasPlayer, playerName, is
 export const HexGrid = () => {
   const { state, dispatch } = useGame();
   const { user } = useAuth();
+  const { tutorialProgress, isTutorialActive, currentStep, updateTutorialStep } = useTutorial();
   const [tiles, setTiles] = useState<Array<{q: number, r: number, s: number, type: 'castle' | 'forest' | 'mountain' | 'plain' | 'mine' | 'chest'}>>([]);
   const [userPositions, setUserPositions] = useState<UserPosition[]>([]);
   const [resourceRegions, setResourceRegions] = useState<ResourceRegion[]>([]);
@@ -365,6 +367,11 @@ export const HexGrid = () => {
     // Check if there's a resource region here
     const resourceRegion = getResourceRegionOnTile(tile.q, tile.r);
     if (resourceRegion) {
+      // Check tutorial step for battle
+      if (isTutorialActive && currentStep === 'battle_enemy') {
+        // Resource battle counts as battle for tutorial
+        await updateTutorialStep('completed');
+      }
       setSelectedResourceRegion(resourceRegion);
       setIsBattleOpen(true);
       return;
@@ -374,15 +381,24 @@ export const HexGrid = () => {
     
     // Kendi kalene tıklama - Kale içi ekranını aç
     if (playerOnTile && playerOnTile.user_id === user?.id) {
+      // Tutorial check for entering castle
+      if (isTutorialActive && currentStep === 'enter_castle') {
+        await updateTutorialStep('build_structure');
+      }
       setIsCastleInteriorOpen(true);
       return;
     }
     
-    // Düşman kalesi kontrolü - Kalkanlı kalelere saldırı yapılamaz
+    // Düşman kalesi kontrolü
     if (playerOnTile && playerOnTile.user_id !== user?.id) {
       if (playerOnTile.has_shield) {
         toast.info(`${playerOnTile.username} kalesi kalkanlı! Saldırı yapılamaz.`);
         return;
+      }
+      
+      // Tutorial check for battle
+      if (isTutorialActive && currentStep === 'battle_enemy') {
+        await updateTutorialStep('completed');
       }
       
       const shouldAttack = confirm(`${playerOnTile.username} kalesine saldırmak istiyor musunuz?`);
@@ -392,10 +408,19 @@ export const HexGrid = () => {
       }
     }
 
-    // Boş alana kale taşıma (sadece kendi kalemiz varsa)
+    // Boş alana kale taşıma
     if (userHasPosition && user && !playerOnTile) {
-      const shouldMove = confirm(`Kalenizi (${tile.q}, ${tile.r}) konumuna taşımak istiyor musunuz?`);
+      // Tutorial check for moving castle
+      if (isTutorialActive && currentStep === 'move_castle') {
+        const shouldMove = confirm(`Kalenizi (${tile.q}, ${tile.r}) konumuna taşımak istiyor musunuz? (Tutorial görev)`);
+        if (shouldMove) {
+          await moveCastle(tile);
+          await updateTutorialStep('enter_castle');
+        }
+        return;
+      }
       
+      const shouldMove = confirm(`Kalenizi (${tile.q}, ${tile.r}) konumuna taşımak istiyor musunuz?`);
       if (shouldMove) {
         await moveCastle(tile);
       }
@@ -514,6 +539,19 @@ export const HexGrid = () => {
 
   return (
     <div className="w-full h-full bg-gradient-to-br from-green-50 to-blue-50 overflow-hidden relative">
+      {/* Tutorial highlight overlay for current step */}
+      {isTutorialActive && (
+        <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-20">
+          <div className="bg-yellow-100 border-2 border-yellow-400 rounded-lg p-3 shadow-lg animate-pulse">
+            <p className="text-sm font-medium text-yellow-800 text-center">
+              {currentStep === 'move_castle' && '🎯 Boş bir alana tıklayarak kalenizi taşıyın'}
+              {currentStep === 'enter_castle' && '🎯 Mavi kalenize tıklayarak kale içine girin'}
+              {currentStep === 'battle_enemy' && '🎯 Kırmızı düşman kalesine tıklayarak savaş başlatın'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Kalkan Kontrolü - Sağ üst köşe */}
       {userHasPosition && (
         <div className="absolute top-4 right-4 z-10">

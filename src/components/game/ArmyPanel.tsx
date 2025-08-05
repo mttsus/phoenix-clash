@@ -1,124 +1,217 @@
 
-import { useState } from 'react';
-import { useGame } from '@/contexts/GameContext';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { useGame } from '@/contexts/GameContext';
+import { useUserResources } from '@/hooks/useUserResources';
+import { useTutorial } from '@/hooks/useTutorial';
+import { Swords, ShieldIcon, Target, Zap, Flame, Snowflake } from 'lucide-react';
+import { toast } from 'sonner';
 
-const ARMY_UNITS = {
-  swordsman: { name: 'Kılıçlı', damage: 50, health: 100, icon: '⚔️' },
-  archer: { name: 'Okçu', damage: 40, health: 80, icon: '🏹' },
-  cavalry: { name: 'Atlı', damage: 70, health: 120, icon: '🐎' },
-  mage_fire: { name: 'Ateş Büyücüsü', damage: 90, health: 60, icon: '🔥' },
-  mage_ice: { name: 'Buz Büyücüsü', damage: 80, health: 70, icon: '❄️' },
-  mage_lightning: { name: 'Şimşek Büyücüsü', damage: 100, health: 50, icon: '⚡' }
-};
+const unitTypes = [
+  { 
+    id: 'swordsman', 
+    name: 'Kılıççı', 
+    icon: '⚔️', 
+    health: 100, 
+    damage: 25, 
+    cost: 500,
+    description: 'Yakın dövüş uzmanı'
+  },
+  { 
+    id: 'archer', 
+    name: 'Okçu', 
+    icon: '🏹', 
+    health: 75, 
+    damage: 30, 
+    cost: 600,
+    description: 'Uzak mesafe saldırısı'
+  },
+  { 
+    id: 'cavalry', 
+    name: 'Süvari', 
+    icon: '🐎', 
+    health: 120, 
+    damage: 35, 
+    cost: 800,
+    description: 'Hızlı ve güçlü'
+  },
+  { 
+    id: 'mage_fire', 
+    name: 'Ateş Büyücüsü', 
+    icon: '🔥', 
+    health: 80, 
+    damage: 40, 
+    cost: 1000,
+    description: 'Alan hasarı verir'
+  },
+  { 
+    id: 'mage_ice', 
+    name: 'Buz Büyücüsü', 
+    icon: '❄️', 
+    health: 85, 
+    damage: 35, 
+    cost: 1000,
+    description: 'Düşmanları yavaşlatır'
+  },
+  { 
+    id: 'mage_lightning', 
+    name: 'Şimşek Büyücüsü', 
+    icon: '⚡', 
+    health: 75, 
+    damage: 45, 
+    cost: 1200,
+    description: 'Hızlı ve sürpriz saldırı'
+  },
+] as const;
 
 export const ArmyPanel = () => {
   const { state, dispatch } = useGame();
-  const [selectedUnitType, setSelectedUnitType] = useState<keyof typeof ARMY_UNITS>('swordsman');
+  const { resources, canAfford, spendResources } = useUserResources();
+  const { tutorialProgress, isTutorialActive, currentStep, updateTutorialStep } = useTutorial();
+  const [selectedUnit, setSelectedUnit] = useState<string>('');
 
-  const canCreateArmy = () => {
-    const cost = 500;
-    return Object.values(state.resources).every(resource => resource >= cost);
-  };
+  const createUnit = async (unitTypeId: string) => {
+    const unitType = unitTypes.find(u => u.id === unitTypeId);
+    if (!unitType) return;
 
-  const createArmyUnit = () => {
-    if (!canCreateArmy()) return;
+    const success = await spendResources(unitType.cost);
+    if (!success) return;
 
-    const unitData = ARMY_UNITS[selectedUnitType];
     const newUnit = {
-      id: `${selectedUnitType}_${Date.now()}`,
-      type: selectedUnitType,
-      count: 100, // Her üretimde 100 asker
-      damage: unitData.damage,
-      health: unitData.health
+      id: `${unitTypeId}_${Date.now()}`,
+      type: unitTypeId as any,
+      count: 1,
+      health: unitType.health,
+      damage: unitType.damage
     };
 
     dispatch({ type: 'CREATE_ARMY_UNIT', payload: newUnit });
+    toast.success(`${unitType.name} eğitildi!`);
+
+    // Tutorial check for army training
+    if (isTutorialActive && currentStep === 'train_army') {
+      const totalArmyCount = state.army.reduce((sum, unit) => sum + unit.count, 0) + 1;
+      
+      // Check if we have at least 1 of each unit type and 1000+ total
+      const unitTypesInArmy = new Set([...state.army.map(u => u.type), unitTypeId]);
+      const hasAllUnitTypes = unitTypesInArmy.size >= 6;
+      
+      if (totalArmyCount >= 1000 && hasAllUnitTypes) {
+        await updateTutorialStep('battle_enemy');
+        toast.success('🎉 Tutorial: Ordu hazır! Şimdi düşmanla savaşın!');
+      } else {
+        const remaining = Math.max(0, 1000 - totalArmyCount);
+        const missingTypes = 6 - unitTypesInArmy.size;
+        toast.info(`Tutorial: ${remaining} asker ve ${missingTypes} farklı tür kaldı`);
+      }
+    }
   };
 
   const getTotalArmyCount = () => {
     return state.army.reduce((total, unit) => total + unit.count, 0);
   };
 
+  const getUniqueUnitTypes = () => {
+    return new Set(state.army.map(unit => unit.type)).size;
+  };
+
   return (
-    <div className="h-full flex flex-col p-4">
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-lg">Ordu Durumu</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span>Toplam Asker:</span>
-              <Badge variant="secondary">{getTotalArmyCount()} / 10.000</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span>Mana:</span>
-              <Badge variant="default">10 / 10</Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-lg">Ordu Üretimi</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(ARMY_UNITS).map(([key, unit]) => (
-                <Button
-                  key={key}
-                  variant={selectedUnitType === key ? "default" : "outline"}
-                  onClick={() => setSelectedUnitType(key as keyof typeof ARMY_UNITS)}
-                  className="p-2 h-auto flex flex-col"
-                  size="sm"
-                >
-                  <span className="text-lg">{unit.icon}</span>
-                  <span className="text-xs">{unit.name}</span>
-                </Button>
-              ))}
-            </div>
-            
-            <div className="text-sm text-muted-foreground">
-              <div>Hasar: {ARMY_UNITS[selectedUnitType].damage}</div>
-              <div>Sağlık: {ARMY_UNITS[selectedUnitType].health}</div>
-              <div className="mt-2">Maliyet: 500 her kaynak</div>
-            </div>
-            
-            <Button 
-              onClick={createArmyUnit} 
-              disabled={!canCreateArmy()}
-              className="w-full"
-            >
-              100 {ARMY_UNITS[selectedUnitType].name} Üret
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
+    <div className="h-full flex flex-col">
       <Card className="flex-1">
         <CardHeader>
-          <CardTitle className="text-lg">Mevcut Ordu</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Swords className="w-5 h-5" />
+            Ordu Yönetimi
+            {isTutorialActive && currentStep === 'train_army' && (
+              <Badge variant="default" className="bg-yellow-500">
+                Tutorial
+              </Badge>
+            )}
+          </CardTitle>
+          <div className="flex gap-2 text-sm">
+            <Badge variant="outline">
+              Toplam: {getTotalArmyCount()} asker
+            </Badge>
+            <Badge variant="outline">
+              Çeşit: {getUniqueUnitTypes()}/6
+            </Badge>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {state.army.map((unit, index) => (
-              <div key={unit.id} className="flex justify-between items-center p-2 bg-muted rounded">
-                <div className="flex items-center space-x-2">
-                  <span>{ARMY_UNITS[unit.type].icon}</span>
-                  <span className="text-sm">{ARMY_UNITS[unit.type].name}</span>
+
+        <CardContent className="space-y-4">
+          {/* Tutorial guidance */}
+          {isTutorialActive && currentStep === 'train_army' && (
+            <div className="p-3 bg-yellow-100 border-2 border-yellow-400 rounded-lg">
+              <p className="text-sm font-medium text-yellow-800">
+                🎯 6 farklı asker türünden en az 1000 asker üretin
+              </p>
+              <p className="text-xs text-yellow-700 mt-1">
+                İlerleme: {getTotalArmyCount()}/1000 asker, {getUniqueUnitTypes()}/6 tür
+              </p>
+            </div>
+          )}
+
+          {/* Unit Training */}
+          <div className="space-y-3">
+            <h3 className="font-semibold text-sm">Asker Eğitimi</h3>
+            <div className="grid grid-cols-1 gap-2">
+              {unitTypes.map((unit) => (
+                <div key={unit.id} className="border rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{unit.icon}</span>
+                      <div>
+                        <div className="font-medium text-sm">{unit.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          ❤️{unit.health} ⚔️{unit.damage}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <div className="text-xs text-muted-foreground mb-1">
+                        {unit.cost} kaynak
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => createUnit(unit.id)}
+                        disabled={!canAfford(unit.cost)}
+                        className="h-7 text-xs"
+                      >
+                        Eğit
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <Badge variant="outline">{unit.count}</Badge>
+              ))}
+            </div>
+          </div>
+
+          {/* Current Army */}
+          <div className="space-y-3">
+            <h3 className="font-semibold text-sm">Mevcut Ordu</h3>
+            {state.army.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground text-sm">
+                Henüz asker yok
               </div>
-            ))}
-            {state.army.length === 0 && (
-              <div className="text-center text-muted-foreground py-4">
-                Henüz ordu yok
+            ) : (
+              <div className="space-y-2">
+                {state.army.map((unit) => {
+                  const unitType = unitTypes.find(u => u.id === unit.type);
+                  return (
+                    <div key={unit.id} className="flex items-center justify-between p-2 bg-secondary rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <span>{unitType?.icon}</span>
+                        <span className="text-sm font-medium">{unitType?.name}</span>
+                      </div>
+                      <Badge variant="outline">
+                        {unit.count} adet
+                      </Badge>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

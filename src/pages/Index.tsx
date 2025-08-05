@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HexGrid } from '@/components/game/HexGrid';
@@ -9,6 +8,7 @@ import { GameProvider } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { LogOut, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { TutorialOverlay } from '@/components/game/TutorialOverlay';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -66,6 +66,9 @@ const Index = () => {
         
         {/* Savaş Arenası Modal */}
         <BattleArena />
+        
+        {/* Tutorial Overlay */}
+        <TutorialOverlay />
       </div>
     </GameProvider>
   );

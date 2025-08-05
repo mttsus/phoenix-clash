@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      buildings: {
+        Row: {
+          completion_time: string | null
+          created_at: string
+          id: string
+          level: number
+          owner_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          completion_time?: string | null
+          created_at?: string
+          id?: string
+          level?: number
+          owner_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          completion_time?: string | null
+          created_at?: string
+          id?: string
+          level?: number
+          owner_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       game_catapults: {
         Row: {
           created_at: string | null
@@ -535,11 +565,52 @@ export type Database = {
         }
         Relationships: []
       }
+      user_tutorial_progress: {
+        Row: {
+          completed_steps: string[] | null
+          created_at: string
+          current_step: Database["public"]["Enums"]["tutorial_step"] | null
+          id: string
+          step_data: Json | null
+          tutorial_completed: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_steps?: string[] | null
+          created_at?: string
+          current_step?: Database["public"]["Enums"]["tutorial_step"] | null
+          id?: string
+          step_data?: Json | null
+          tutorial_completed?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_steps?: string[] | null
+          created_at?: string
+          current_step?: Database["public"]["Enums"]["tutorial_step"] | null
+          id?: string
+          step_data?: Json | null
+          tutorial_completed?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      add_tutorial_reward: {
+        Args: { reward_amount: number }
+        Returns: boolean
+      }
+      complete_tutorial_step_reward: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       move_castle: {
         Args: { target_q: number; target_r: number; target_s: number }
         Returns: boolean
@@ -548,9 +619,24 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      update_tutorial_step: {
+        Args: {
+          new_step: Database["public"]["Enums"]["tutorial_step"]
+          step_data_update?: Json
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      tutorial_step:
+        | "move_castle"
+        | "enter_castle"
+        | "build_structure"
+        | "wait_construction"
+        | "upgrade_building"
+        | "train_army"
+        | "battle_enemy"
+        | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -677,6 +763,17 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      tutorial_step: [
+        "move_castle",
+        "enter_castle",
+        "build_structure",
+        "wait_construction",
+        "upgrade_building",
+        "train_army",
+        "battle_enemy",
+        "completed",
+      ],
+    },
   },
 } as const

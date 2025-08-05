@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Hammer, Clock, Star, Zap } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTutorial } from '@/hooks/useTutorial';
 
 interface Building {
   id: string;
@@ -91,6 +92,7 @@ interface CastleInteriorProps {
 export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
   const { user } = useAuth();
   const { resources, canAfford, spendResources, updateResources } = useUserResources();
+  const { tutorialProgress, isTutorialActive, currentStep, updateTutorialStep } = useTutorial();
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [selectedBuildingType, setSelectedBuildingType] = useState<string>('');
@@ -119,14 +121,22 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
       setBuildings(prev => prev.map(building => {
         // Check if building construction is complete
         if (building.isBuilding && building.buildStartTime && 
-            now >= building.buildStartTime + 60000) { // 1 minute = 60000ms
-          toast.success(`${buildingTypes[building.type].name} inşaatı tamamlandı!`);
+            now >= building.buildStartTime + 60000) {
+          
+          // Tutorial check for construction completion
+          if (isTutorialActive && currentStep === 'wait_construction') {
+            updateTutorialStep('upgrade_building');
+            toast.success('🎉 Tutorial: İnşaat tamamlandı! Şimdi binayı geliştirin!');
+          } else {
+            toast.success(`${buildingTypes[building.type].name} inşaatı tamamlandı!`);
+          }
+          
           return { ...building, isBuilding: false, buildStartTime: undefined };
         }
         
         // Check if upgrade is complete
         if (building.upgradeStartTime && 
-            now >= building.upgradeStartTime + 60000) { // 1 minute = 60000ms
+            now >= building.upgradeStartTime + 60000) {
           toast.success(`${buildingTypes[building.type].name} seviye ${building.level + 1} oldu!`);
           return { 
             ...building, 
@@ -140,7 +150,7 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isTutorialActive, currentStep, updateTutorialStep]);
 
   // Production effect - now updates real resources
   useEffect(() => {
@@ -195,7 +205,6 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
     const success = await spendResources(cost);
     if (!success) return;
 
-    // Add building
     const newBuilding: Building = {
       id: `${selectedBuildingType}_${Date.now()}`,
       type: selectedBuildingType as any,
@@ -210,7 +219,13 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
     setSelectedSlot(null);
     setSelectedBuildingType('');
     
-    toast.success(`${buildingType.name} inşaatı başladı! 1 dakika sürecek.`);
+    // Tutorial check for starting construction
+    if (isTutorialActive && currentStep === 'build_structure') {
+      await updateTutorialStep('wait_construction');
+      toast.success('🎉 Tutorial: İnşaat başladı! 1 dakika bekleyin...');
+    } else {
+      toast.success(`${buildingType.name} inşaatı başladı! 1 dakika sürecek.`);
+    }
   };
 
   const handleUpgradeBuilding = async (building: Building) => {
@@ -220,14 +235,19 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
     const success = await spendResources(upgradeCost);
     if (!success) return;
 
-    // Start upgrade
     setBuildings(prev => prev.map(b => 
       b.id === building.id 
         ? { ...b, upgradeStartTime: Date.now() }
         : b
     ));
 
-    toast.success(`${buildingTypes[building.type].name} geliştirme başladı! 1 dakika sürecek.`);
+    // Tutorial check for upgrading building
+    if (isTutorialActive && currentStep === 'upgrade_building') {
+      await updateTutorialStep('train_army');
+      toast.success('🎉 Tutorial: Bina geliştirildi! Şimdi ordu oluşturun!');
+    } else {
+      toast.success(`${buildingTypes[building.type].name} geliştirme başladı! 1 dakika sürecek.`);
+    }
   };
 
   const getTimeRemaining = (startTime: number) => {
@@ -245,8 +265,24 @@ export const CastleInterior = ({ isOpen, onClose }: CastleInteriorProps) => {
             <Badge variant="secondary">
               Toplam Bina: {buildings.length}/9
             </Badge>
+            {isTutorialActive && (currentStep === 'build_structure' || currentStep === 'wait_construction' || currentStep === 'upgrade_building') && (
+              <Badge variant="default" className="bg-yellow-500">
+                Tutorial Aktif
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
+
+        {/* Tutorial guidance overlay */}
+        {isTutorialActive && (currentStep === 'build_structure' || currentStep === 'wait_construction' || currentStep === 'upgrade_building') && (
+          <div className="mx-6 p-3 bg-yellow-100 border-2 border-yellow-400 rounded-lg">
+            <p className="text-sm font-medium text-yellow-800">
+              {currentStep === 'build_structure' && '🎯 Boş bir alan seçin ve herhangi bir bina inşa edin'}
+              {currentStep === 'wait_construction' && '⏰ İnşaat tamamlanması bekleniyor... (1 dakika)'}
+              {currentStep === 'upgrade_building' && '⭐ Tamamlanan binayı geliştirin'}
+            </p>
+          </div>
+        )}
 
         <div className="flex-1 overflow-auto p-6">
           {/* Build Grid */}
