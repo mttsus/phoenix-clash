@@ -218,43 +218,76 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
     };
   }, [state.battleState.playerMana, state.battleState.maxMana, dispatch]);
 
-  // Main game loop with unit vs catapult combat
+  // Main game loop with improved unit vs catapult vs tower combat
   useEffect(() => {
     const gameLoop = setInterval(() => {
-      // Unit movement and combat
+      // Unit movement and combat - attack closest enemy target
       setUnits(prevUnits => {
         return prevUnits.map(unit => {
           if (unit.battalion <= 0) return unit;
 
-          // Check for enemy catapults in range first
+          // Find all possible enemy targets in the same lane
           const enemyCatapults = catapults.filter(c => 
             !c.isDestroyed && 
             c.team !== 'player' &&
             c.lane === unit.lane
           );
 
-          // Find closest catapult in the same lane
-          const closestCatapult = enemyCatapults
-            .sort((a, b) => Math.abs(a.y - unit.y) - Math.abs(b.y - unit.y))[0];
+          const enemyTowers = towers.filter(t => 
+            t.lane === unit.lane && 
+            !t.isDestroyed && 
+            t.team === 'enemy'
+          );
 
-          if (closestCatapult) {
-            const catapultDistance = Math.abs(closestCatapult.y - unit.y);
-            
-            if (catapultDistance > 60) {
-              // Move towards catapult
-              return {
-                ...unit,
-                y: unit.y - unit.speed,
-                isMoving: true,
-                targetCatapult: closestCatapult,
-                targetTower: undefined
-              };
-            } else {
-              // Attack catapult
-              if (gameTime - unit.lastAttack > 1) {
+          // Calculate distances and find closest target
+          const catapultTargets = enemyCatapults.map(c => ({
+            type: 'catapult',
+            target: c,
+            distance: Math.abs(c.y - unit.y),
+            x: c.x,
+            y: c.y
+          }));
+
+          const towerTargets = enemyTowers.map(t => ({
+            type: 'tower',
+            target: t,
+            distance: Math.abs(t.y - unit.y),
+            x: t.x,
+            y: t.y
+          }));
+
+          // Enemy castle target
+          const enemyCastleY = 40;
+          const castleTarget = {
+            type: 'castle',
+            target: null,
+            distance: Math.abs(enemyCastleY - unit.y),
+            x: unit.x,
+            y: enemyCastleY
+          };
+
+          // Combine all targets and find the closest one
+          const allTargets = [...catapultTargets, ...towerTargets, castleTarget]
+            .sort((a, b) => a.distance - b.distance);
+
+          const closestTarget = allTargets[0];
+
+          if (closestTarget && closestTarget.distance > 60) {
+            // Move towards closest target
+            return {
+              ...unit,
+              y: unit.y - unit.speed,
+              isMoving: true,
+              targetCatapult: closestTarget.type === 'catapult' ? closestTarget.target : undefined,
+              targetTower: closestTarget.type === 'tower' ? closestTarget.target : undefined
+            };
+          } else if (closestTarget && closestTarget.distance <= 60) {
+            // Attack closest target
+            if (gameTime - unit.lastAttack > 1) {
+              if (closestTarget.type === 'catapult') {
                 setCatapults(prevCatapults => 
                   prevCatapults.map(c => 
-                    c.id === closestCatapult.id 
+                    c.id === closestTarget.target.id 
                       ? { 
                           ...c, 
                           health: Math.max(0, c.health - unit.damage),
@@ -263,66 +296,21 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
                       : c
                   )
                 );
-                return { ...unit, lastAttack: gameTime, isMoving: false };
-              }
-              return unit;
-            }
-          }
-
-          // If no catapults, find enemy towers in the same lane
-          const laneTowers = towers.filter(t => 
-            t.lane === unit.lane && 
-            !t.isDestroyed && 
-            t.team === 'enemy'
-          ).sort((a, b) => Math.abs(a.y - unit.y) - Math.abs(b.y - unit.y));
-
-          const closestTower = laneTowers[0];
-
-          if (closestTower) {
-            const distance = Math.abs(closestTower.y - unit.y);
-            
-            if (distance > 60) {
-              // Move towards tower
-              return {
-                ...unit,
-                y: unit.y - unit.speed,
-                isMoving: true,
-                targetTower: closestTower,
-                targetCatapult: undefined
-              };
-            } else {
-              // Attack tower
-              if (gameTime - unit.lastAttack > 1) {
+              } else if (closestTarget.type === 'tower') {
                 setTowers(prevTowers => 
                   prevTowers.map(t => 
-                    t.id === closestTower.id 
+                    t.id === closestTarget.target.id 
                       ? { ...t, health: Math.max(0, t.health - unit.damage), isDestroyed: t.health - unit.damage <= 0 }
                       : t
                   )
                 );
-                return { ...unit, lastAttack: gameTime, isMoving: false };
-              }
-            }
-          } else {
-            // No towers in this lane, move towards enemy castle
-            const enemyCastleY = 40;
-            const distance = Math.abs(enemyCastleY - unit.y);
-            
-            if (distance > 60) {
-              return {
-                ...unit,
-                y: unit.y - unit.speed,
-                isMoving: true
-              };
-            } else {
-              // Attack enemy castle
-              if (gameTime - unit.lastAttack > 1) {
+              } else if (closestTarget.type === 'castle') {
                 setCastleHealth(prev => ({
                   ...prev,
                   enemy: Math.max(0, prev.enemy - unit.damage)
                 }));
-                return { ...unit, lastAttack: gameTime, isMoving: false };
               }
+              return { ...unit, lastAttack: gameTime, isMoving: false };
             }
           }
 
@@ -357,7 +345,7 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
         }
       });
 
-      // Catapult movement and targeting
+      // Catapult movement and targeting - ONLY target structures (towers and castle)
       setCatapults(prevCatapults => 
         prevCatapults.map(catapult => {
           if (catapult.isDestroyed || catapult.health <= 0) return { ...catapult, isDestroyed: true };
@@ -389,8 +377,9 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
             }
           }
 
-          // Auto-fire every 3 seconds when in range
+          // Auto-fire every 3 seconds when in range - ONLY at structures
           if (gameTime - catapult.lastShot >= 3) {
+            // Priority 1: Attack towers in lane
             if (enemyTowersInLane.length > 0) {
               const targetTower = enemyTowersInLane[0];
               const distance = Math.abs(targetTower.y - catapult.y);
@@ -410,7 +399,7 @@ export const DefensiveBattle = ({ battleType }: DefensiveBattleProps) => {
                 return { ...catapult, lastShot: gameTime };
               }
             } else {
-              // Target enemy castle if no towers
+              // Priority 2: Attack enemy castle if no towers
               const enemyCastleY = catapult.team === 'player' ? 40 : 760;
               const distance = Math.abs(enemyCastleY - catapult.y);
               
