@@ -535,11 +535,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_tutorial_progress: {
+        Row: {
+          completed_steps: string[] | null
+          created_at: string
+          current_step: string | null
+          id: string
+          tutorial_completed: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_steps?: string[] | null
+          created_at?: string
+          current_step?: string | null
+          id?: string
+          tutorial_completed?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_steps?: string[] | null
+          created_at?: string
+          current_step?: string | null
+          id?: string
+          tutorial_completed?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      add_tutorial_reward: {
+        Args: { reward_amount: number }
+        Returns: boolean
+      }
       move_castle: {
         Args: { target_q: number; target_r: number; target_s: number }
         Returns: boolean

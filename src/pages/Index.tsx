@@ -10,16 +10,20 @@ import { GameProvider } from '@/contexts/GameContext';
 import { Button } from '@/components/ui/button';
 import { LogOut, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { CastleInterior } from '@/components/game/CastleInterior';
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const [selectedCastle, setSelectedCastle] = useState<any>(null);
   const [tutorialEvents, setTutorialEvents] = useState({
     castleMoved: false,
     castleClicked: false,
     constructionStarted: false,
     constructionCompleted: false,
     buildingUpgraded: false,
+    armyProduced: false,
     battleStarted: false
   });
 
@@ -51,6 +55,7 @@ const Index = () => {
             onConstructionStarted={tutorialEvents.constructionStarted ? () => {} : () => handleTutorialEvent('constructionStarted')}
             onConstructionCompleted={tutorialEvents.constructionCompleted ? () => {} : () => handleTutorialEvent('constructionCompleted')}
             onBuildingUpgraded={tutorialEvents.buildingUpgraded ? () => {} : () => handleTutorialEvent('buildingUpgraded')}
+            onArmyProduced={tutorialEvents.armyProduced ? () => {} : () => handleTutorialEvent('armyProduced')}
             onBattleStarted={tutorialEvents.battleStarted ? () => {} : () => handleTutorialEvent('battleStarted')}
           />
 
@@ -93,6 +98,26 @@ const Index = () => {
             </div>
           </div>
         </div>
+        
+        {/* Kale İç Ekranı Modal */}
+        {selectedCastle && (
+          <Dialog open={!!selectedCastle} onOpenChange={() => setSelectedCastle(null)}>
+            <DialogContent className="max-w-6xl w-full h-[90vh] p-0">
+              <CastleInterior
+                castle={selectedCastle}
+                onClose={() => setSelectedCastle(null)}
+                onConstructionStarted={() => handleTutorialEvent('constructionStarted')}
+                onConstructionCompleted={() => handleTutorialEvent('constructionCompleted')}
+                onBuildingUpgraded={() => handleTutorialEvent('buildingUpgraded')}
+                onArmyProduced={(totalArmy) => {
+                  if (!tutorialEvents.armyProduced) {
+                    handleTutorialEvent('armyProduced');
+                  }
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
         
         {/* Savaş Arenası Modal */}
         <BattleArena />

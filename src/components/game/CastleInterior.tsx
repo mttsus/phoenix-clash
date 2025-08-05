@@ -1,188 +1,262 @@
-import { useState, useEffect } from 'react';
-import { useGame } from '@/contexts/GameContext';
-import { useUserResources } from '@/hooks/useUserResources';
-import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { useGame } from '@/contexts/GameContext';
+import { supabase } from '@/integrations/supabase/client';
 
-interface Building {
-  id: string;
-  type: 'barracks' | 'workshop' | 'tower' | 'wall';
-  level: number;
-  constructionTime: number;
-  isUnderConstruction: boolean;
-  startTime: number;
-}
-
-const BUILDING_COSTS = {
-  barracks: 1000,
-  workshop: 1500,
-  tower: 2000,
-  wall: 500
-};
-
-const CONSTRUCTION_TIMES = {
-  barracks: 60000, // 1 minute
-  workshop: 90000, // 1.5 minutes
-  tower: 120000, // 2 minutes
-  wall: 30000 // 30 seconds
-};
-
-const getBuildingName = (type: 'barracks' | 'workshop' | 'tower' | 'wall') => {
-  switch (type) {
-    case 'barracks': return 'Kışla';
-    case 'workshop': return 'Atölye';
-    case 'tower': return 'Kule';
-    case 'wall': return 'Duvar';
-    default: return 'Bina';
-  }
-};
-
-export const CastleInterior = ({ 
-  isOpen, 
-  onClose,
-  onConstructionStarted,
-  onConstructionCompleted,
-  onBuildingUpgraded 
-}: { 
-  isOpen: boolean; 
+interface CastleInteriorProps {
+  castle: {
+    id: string;
+    user_id: string;
+    username: string;
+    q: number;
+    r: number;
+    s: number;
+  };
   onClose: () => void;
   onConstructionStarted?: () => void;
   onConstructionCompleted?: () => void;
   onBuildingUpgraded?: () => void;
-}) => {
-  const { resources, canAfford, spendResources } = useUserResources();
+  onArmyProduced?: (totalArmy: number) => void;
+}
+
+interface Building {
+  id: string;
+  type: string;
+  level: number;
+  completion_time: string | null;
+}
+
+interface ArmyUnit {
+  id: string;
+  type: 'swordsman' | 'archer' | 'cavalry' | 'mage_fire' | 'mage_ice' | 'mage_lightning';
+  count: number;
+}
+
+export const CastleInterior = ({ 
+  castle, 
+  onClose,
+  onConstructionStarted,
+  onConstructionCompleted,
+  onBuildingUpgraded,
+  onArmyProduced
+}: CastleInteriorProps) => {
+  const { state, dispatch } = useGame();
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const [constructing, setConstructing] = useState(false);
+  const [newBuildingType, setNewBuildingType] = useState('');
+  const [upgrading, setUpgrading] = useState(false);
+  const [buildingToUpgrade, setBuildingToUpgrade] = useState('');
+  const [producing, setProducing] = useState(false);
+  const [unitTypeToProduce, setUnitTypeToProduce] = useState<ArmyUnit['type']>('swordsman');
 
   useEffect(() => {
-    // Load buildings from local storage or database here
-    // For now, let's initialize with an empty array
-    setBuildings([]);
-  }, []);
+    loadBuildings();
+  }, [castle]);
 
-  const handleStartConstruction = async (buildingType: 'barracks' | 'workshop' | 'tower' | 'wall') => {
-    if (!canAfford(BUILDING_COSTS[buildingType])) {
-      toast.error('Yeterli kaynağınız yok!');
-      return;
+  const loadBuildings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('buildings')
+        .select('*')
+        .eq('owner_id', castle.user_id);
+
+      if (error) {
+        console.error('Error loading buildings:', error);
+        return;
+      }
+
+      setBuildings(data || []);
+    } catch (err) {
+      console.error('Unexpected error:', err);
     }
+  };
 
-    // Tutorial event
-    onConstructionStarted?.();
+  const startConstruction = async (buildingType: string) => {
+    setConstructing(true);
+    try {
+      const { data, error } = await supabase
+        .from('buildings')
+        .insert([{
+          owner_id: castle.user_id,
+          type: buildingType,
+          level: 1,
+          completion_time: new Date(Date.now() + 60000).toISOString() // 1 minute
+        }]);
 
-    const success = await spendResources(BUILDING_COSTS[buildingType]);
-    if (!success) return;
+      if (error) {
+        console.error('Construction start error:', error);
+        toast.error('İnşaat başlatılamadı: ' + error.message);
+        setConstructing(false);
+        return;
+      }
 
-    const newBuilding: Building = {
-      id: `${buildingType}_${Date.now()}`,
-      type: buildingType,
-      level: 1,
-      constructionTime: CONSTRUCTION_TIMES[buildingType],
-      isUnderConstruction: true,
-      startTime: Date.now()
+      toast.success(`${buildingType} inşaatı başladı!`);
+      loadBuildings();
+      setConstructing(false);
+      setNewBuildingType('');
+      
+      // Tutorial event trigger
+      if (onConstructionStarted) {
+        onConstructionStarted();
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('Beklenmeyen bir hata oluştu');
+      setConstructing(false);
+    }
+  };
+
+  const upgradeBuilding = async (buildingId: string) => {
+    setUpgrading(true);
+    try {
+      const building = buildings.find(b => b.id === buildingId);
+      if (!building) {
+        toast.error('Bina bulunamadı');
+        setUpgrading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('buildings')
+        .update({
+          level: building.level + 1
+        })
+        .eq('id', buildingId);
+
+      if (error) {
+        console.error('Upgrade error:', error);
+        toast.error('Yükseltme yapılamadı: ' + error.message);
+        setUpgrading(false);
+        return;
+      }
+
+      toast.success(`${building.type} seviye ${building.level + 1}'e yükseltildi!`);
+      loadBuildings();
+      setUpgrading(false);
+      setBuildingToUpgrade('');
+      
+      // Tutorial event trigger
+      if (onBuildingUpgraded) {
+        onBuildingUpgraded();
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('Beklenmeyen bir hata oluştu');
+      setUpgrading(false);
+    }
+  };
+
+  const produceUnit = (unitType: ArmyUnit['type']) => {
+    setProducing(true);
+    const newUnit = {
+      id: Math.random().toString(36).substring(7),
+      type: unitType,
+      count: 100,
+      damage: 50,
+      health: 100
     };
 
-    setBuildings(prev => [...prev, newBuilding]);
-    toast.success(`${getBuildingName(buildingType)} inşaatı başlatıldı!`);
-
-    // Simulate construction completion after 1 minute for tutorial
-    setTimeout(() => {
-      setBuildings(prev => 
-        prev.map(building => 
-          building.id === newBuilding.id 
-            ? { ...building, isUnderConstruction: false }
-            : building
-        )
-      );
-      onConstructionCompleted?.(); // Tutorial event
-      toast.success(`${getBuildingName(buildingType)} inşaatı tamamlandı!`);
-    }, 60000); // 1 minute
-  };
-
-  const handleUpgrade = async (buildingId: string) => {
-    const building = buildings.find(b => b.id === buildingId);
-    if (!building) return;
-
-    const upgradeCost = BUILDING_COSTS[building.type] * building.level * 2;
+    dispatch({ type: 'CREATE_ARMY_UNIT', payload: newUnit });
+    toast.success(`${unitType} üretildi!`);
+    setProducing(false);
+    setUnitTypeToProduce(unitType);
     
-    if (!canAfford(upgradeCost)) {
-      toast.error('Yeterli kaynağınız yok!');
-      return;
+    // Tutorial event trigger - check if we reached 1000 total army
+    if (onArmyProduced) {
+      const totalArmy = state.army.reduce((total, unit) => total + unit.count, 0);
+      onArmyProduced(totalArmy);
     }
-
-    const success = await spendResources(upgradeCost);
-    if (!success) return;
-
-    setBuildings(prev => 
-      prev.map(b => 
-        b.id === buildingId 
-          ? { ...b, level: b.level + 1 }
-          : b
-      )
-    );
-
-    onBuildingUpgraded?.(); // Tutorial event
-    toast.success(`${getBuildingName(building.type)} seviye ${building.level + 1}'e yükseltildi!`);
   };
 
-  if (!isOpen) {
-    return null;
-  }
+  useEffect(() => {
+    // Check for completed constructions
+    const completedBuildings = buildings.filter(
+      building => building.completion_time && new Date(building.completion_time) <= new Date()
+    );
+    
+    if (completedBuildings.length > 0 && onConstructionCompleted) {
+      onConstructionCompleted();
+    }
+  }, [buildings, onConstructionCompleted]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
-      <Card className="max-w-md w-full">
-        <CardHeader>
-          <CardTitle>Kale İçi</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <h4 className="text-sm font-medium">Binalar</h4>
-          <ul className="space-y-2">
-            {buildings.map(building => (
-              <li key={building.id} className="border rounded-md p-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold">{getBuildingName(building.type)} (Seviye {building.level})</p>
-                    {building.isUnderConstruction ? (
-                      <>
-                        <p className="text-sm text-muted-foreground">İnşaat sürüyor...</p>
-                        <Progress 
-                          value={Math.min(100, ((Date.now() - building.startTime) / building.constructionTime) * 100)} 
-                          className="h-2" 
-                        />
-                      </>
-                    ) : (
-                      <Button size="sm" onClick={() => handleUpgrade(building.id)}>
-                        Seviye Yükselt (+{BUILDING_COSTS[building.type] * building.level * 2})
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-          
-          <h4 className="text-sm font-medium">İnşaat</h4>
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => handleStartConstruction('barracks')}>
-              Kışla İnşa Et ({BUILDING_COSTS.barracks})
-            </Button>
-            <Button onClick={() => handleStartConstruction('workshop')}>
-              Atölye İnşa Et ({BUILDING_COSTS.workshop})
-            </Button>
-            <Button onClick={() => handleStartConstruction('tower')}>
-              Kule İnşa Et ({BUILDING_COSTS.tower})
-            </Button>
-            <Button onClick={() => handleStartConstruction('wall')}>
-              Duvar İnşa Et ({BUILDING_COSTS.wall})
+    <Card>
+      <CardHeader>
+        <CardTitle>{castle.username} Kalesi</CardTitle>
+        <CardDescription>Kale içi yönetim ekranı</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="new-building">Yeni Bina İnşa Et</Label>
+          <div className="flex gap-2">
+            <Input
+              id="new-building"
+              value={newBuildingType}
+              onChange={(e) => setNewBuildingType(e.target.value)}
+              placeholder="Bina tipi (örneğin: kışla)"
+            />
+            <Button onClick={() => startConstruction(newBuildingType)} disabled={constructing}>
+              {constructing ? 'İnşa Ediliyor...' : 'İnşa Et'}
             </Button>
           </div>
-          
-          <Button variant="outline" onClick={onClose} className="w-full">
-            Kapat
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="upgrade-building">Bina Yükselt</Label>
+          <div className="flex gap-2">
+            <select
+              id="upgrade-building"
+              className="border rounded px-2 py-1"
+              value={buildingToUpgrade}
+              onChange={(e) => setBuildingToUpgrade(e.target.value)}
+            >
+              <option value="">Bina Seç</option>
+              {buildings.map(building => (
+                <option key={building.id} value={building.id}>
+                  {building.type} (Seviye {building.level})
+                </option>
+              ))}
+            </select>
+            <Button onClick={() => upgradeBuilding(buildingToUpgrade)} disabled={upgrading}>
+              {upgrading ? 'Yükseltiliyor...' : 'Yükselt'}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="produce-unit">Asker Üret</Label>
+          <div className="flex gap-2">
+            <select
+              id="produce-unit"
+              className="border rounded px-2 py-1"
+              value={unitTypeToProduce}
+              onChange={(e) => setUnitTypeToProduce(e.target.value as ArmyUnit['type'])}
+            >
+              <option value="swordsman">Kılıçlı</option>
+              <option value="archer">Okçu</option>
+              <option value="cavalry">Atlı</option>
+              <option value="mage_fire">Ateş Büyücüsü</option>
+              <option value="mage_ice">Buz Büyücüsü</option>
+              <option value="mage_lightning">Yıldırım Büyücüsü</option>
+            </select>
+            <Button onClick={() => produceUnit(unitTypeToProduce)} disabled={producing}>
+              {producing ? 'Üretiliyor...' : 'Üret'}
+            </Button>
+          </div>
+        </div>
+        
+        <Button variant="outline" onClick={onClose}>Kapat</Button>
+      </CardContent>
+    </Card>
   );
 };
