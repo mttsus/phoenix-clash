@@ -200,7 +200,7 @@ export const HexGrid = ({
     }
   };
 
-  const gridStyle = {
+  const gridStyle: React.CSSProperties = {
     position: 'relative',
     width: '100%',
     height: '100%',
@@ -210,19 +210,21 @@ export const HexGrid = ({
 
   return (
     <div style={gridStyle}>
-      {tiles.map((tile) => (
-        <Hexagon
-          key={`${tile.q},${tile.r},${tile.s}`}
-          q={tile.q}
-          r={tile.r}
-          s={tile.s}
-          type={tile.type}
-          owner={tile.owner}
-          isUserCastle={userPosition && tile.q === userPosition.q && tile.r === userPosition.r && tile.s === userPosition.s}
-          username={tile.owner ? usernames[tile.owner] : null}
-          onClick={handleHexClick}
-        />
-      ))}
+      <svg width="100%" height="100%" viewBox="0 0 800 600">
+        {tiles.map((tile) => (
+          <Hexagon
+            key={`${tile.q},${tile.r},${tile.s}`}
+            q={tile.q}
+            r={tile.r}
+            s={tile.s}
+            type={tile.type}
+            owner={tile.owner}
+            isUserCastle={userPosition && tile.q === userPosition.q && tile.r === userPosition.r && tile.s === userPosition.s}
+            username={tile.owner ? usernames[tile.owner] : null}
+            onClick={handleHexClick}
+          />
+        ))}
+      </svg>
     </div>
   );
 };
