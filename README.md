@@ -2,7 +2,7 @@
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/06118936-3518-42ad-baab-6b881da1eb8f
+Simply visit the [mttsus](https://mttsus.dev/) and start prompting.
 
 ## How can I edit this code?
 
@@ -10,7 +10,7 @@ There are several ways of editing your application.
 
 **Use Lovable**
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/06118936-3518-42ad-baab-6b881da1eb8f) and start prompting.
+Simply visit the [mttsus](https://mttsus.dev/) and start prompting.
 
 Changes made via Lovable will be committed automatically to this repo.
 
@@ -62,7 +62,7 @@ This project is built with:
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/06118936-3518-42ad-baab-6b881da1eb8f) and click on Share -> Publish.
+Simply visit the [mttsus](https://mttsus.dev/) and start prompting.
 
 ## Can I connect a custom domain to my Lovable project?
 
@@ -70,4 +70,4 @@ Yes, you can!
 
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Simply visit the [mttsus](https://mttsus.dev/) and start prompting.
